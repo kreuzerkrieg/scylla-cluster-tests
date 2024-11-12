@@ -117,6 +117,26 @@ class ManagerRestoreBanchmarkResult(GenericResultTable):
         }
 
 
+class BackupResult(GenericResultTable):
+    class Meta:
+        name = "Backup benchmark"
+        description = "Backup benchmark"
+        Columns = [
+            ColumnMetadata(name="backup time", unit="s", type=ResultType.DURATION, higher_is_better=False),
+            ColumnMetadata(name="upload time", unit="s", type=ResultType.DURATION, higher_is_better=False),
+            ColumnMetadata(name="total", unit="s", type=ResultType.DURATION, higher_is_better=False),
+        ]
+
+
+class ReadResult(GenericResultTable):
+    class Meta:
+        name = "Read timing"
+        description = "Read timing"
+        Columns = [
+            ColumnMetadata(name="read time", unit="s", type=ResultType.DURATION, higher_is_better=False),
+        ]
+
+
 workload_to_table = {
     "mixed": LatencyCalculatorMixedResult,
     "write": LatencyCalculatorWriteResult,
