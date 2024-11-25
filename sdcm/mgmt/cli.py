@@ -622,10 +622,12 @@ class ManagerCluster(ScyllaManagerBase):
         LOGGER.debug("Created task id is: {}".format(task_id))
         return RestoreTask(task_id=task_id, cluster_id=self.id, manager_node=self.manager_node)
 
-    def create_backup_task(self, dc_list=None,  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches  # noqa: PLR0913
+    def create_backup_task(self, dc_list=None,
+                           # pylint: disable=too-many-arguments,too-many-locals,too-many-branches  # noqa: PLR0913
                            dry_run=None, interval=None, keyspace_list=None, cron=None,
                            location_list=None, num_retries=None, rate_limit_list=None, retention=None, show_tables=None,
-                           snapshot_parallel_list=None, start_date=None, upload_parallel_list=None, legacy_args=None):
+                           snapshot_parallel_list=None, start_date=None, upload_parallel_list=None, transfers=None,
+                           legacy_args=None):
         cmd = "backup -c {}".format(self.id)
 
         if dc_list is not None:
@@ -653,6 +655,8 @@ class ManagerCluster(ScyllaManagerBase):
         if snapshot_parallel_list is not None:
             snapshot_parallel_string = ','.join(snapshot_parallel_list)
             cmd += " --snapshot-parallel {} ".format(snapshot_parallel_string)
+        if transfers is not None:
+            cmd += " --transfers {} ".format(transfers)
         if start_date is not None:
             cmd += " --start-date {} ".format(start_date)
         # Since currently we support both manager 2.6 and 3.0, I left the start-date parameter in,
