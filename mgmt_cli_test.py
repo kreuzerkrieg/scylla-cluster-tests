@@ -1578,7 +1578,7 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
         submit_results_to_argus(self.test_config.argus_client(), table)
 
     def create_backup_and_report(self, mgr_cluster, label: str):
-        task = mgr_cluster.create_backup_task(location_list=self.locations, rate_limit_list=["0"], transfers=16)
+        task = mgr_cluster.create_backup_task(location_list=self.locations, rate_limit_list=["0"], transfers=32)
 
         with ExecutionTimer() as backup_timer:
             backup_task_status = task.wait_for_uploading_stage(timeout=600)
