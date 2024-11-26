@@ -1578,7 +1578,7 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
         submit_results_to_argus(self.test_config.argus_client(), table)
 
     def create_backup_and_report(self, mgr_cluster, label: str):
-        task = mgr_cluster.create_backup_task(location_list=self.locations, rate_limit_list=["0"])
+        task = mgr_cluster.create_backup_task(location_list=self.locations, rate_limit_list=["0"], transfers=8)
 
         backup_status = task.wait_and_get_final_status(timeout=7200)
         assert backup_status == TaskStatus.DONE, "Backup upload has failed!"
