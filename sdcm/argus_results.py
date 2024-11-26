@@ -123,8 +123,6 @@ class BackupResult(GenericResultTable):
         description = "Backup benchmark"
         Columns = [
             ColumnMetadata(name="backup time", unit="s", type=ResultType.DURATION, higher_is_better=False),
-            ColumnMetadata(name="upload time", unit="s", type=ResultType.DURATION, higher_is_better=False),
-            ColumnMetadata(name="total", unit="s", type=ResultType.DURATION, higher_is_better=False),
         ]
 
 

@@ -1580,23 +1580,13 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
     def create_backup_and_report(self, mgr_cluster, label: str):
         task = mgr_cluster.create_backup_task(location_list=self.locations, rate_limit_list=["0"])
 
-        with ExecutionTimer() as backup_timer:
-            backup_task_status = task.wait_for_uploading_stage(timeout=600)
-            assert backup_task_status, "Backup has failed!"
-        InfoEvent(message=f'Backup without upload took: {backup_timer.duration}s.').publish()
-
-        with ExecutionTimer() as backup_upload_timer:
-            backup_status = task.wait_and_get_final_status(timeout=72000)
-            assert backup_status == TaskStatus.DONE, "Backup upload has failed!"
-        InfoEvent(
-            message=f'Backup upload upload took: {backup_upload_timer.duration}.').publish()
+        backup_status = task.wait_and_get_final_status(timeout=7200)
+        assert backup_status == TaskStatus.DONE, "Backup upload has failed!"
 
         InfoEvent(
             message=f'Backup total time is: {task.duration}.').publish()
         backup_report = {
-            "backup time": int(backup_timer.duration.total_seconds()),
-            "upload time": int(backup_upload_timer.duration.total_seconds()),
-            "total": int(task.duration.total_seconds()),
+            "backup time": int(task.duration.total_seconds()),
         }
         self.report_to_argus(ReportType.BACKUP, backup_report, label)
         return task
