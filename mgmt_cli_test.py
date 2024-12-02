@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
 # the Free Software Foundation; either version 3 of the License, or
@@ -22,6 +21,7 @@ from pathlib import Path
 from functools import cached_property
 import re
 import time
+import json
 from textwrap import dedent
 from datetime import datetime, timedelta
 from dataclasses import dataclass
@@ -42,7 +42,7 @@ from sdcm.mgmt.common import reconfigure_scylla_manager, get_persistent_snapshot
 from sdcm.provision.helpers.certificate import TLSAssets
 from sdcm.remote import shell_script_cmd
 from sdcm.tester import ClusterTester
-from sdcm.cluster import TestConfig
+from sdcm.cluster import TestConfig, BaseNode
 from sdcm.nemesis import MgmtRepair
 from sdcm.utils.adaptive_timeouts import adaptive_timeout, Operations
 from sdcm.utils.common import reach_enospc_on_node, clean_enospc_on_node
@@ -1656,3 +1656,52 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
 
         backup_thread.join()
         read_stress_thread.join()
+
+    def test_native_backup_benchmark(self):
+        self.log.info("Executing test_backup_restore_benchmark...")
+
+        for node in self.db_cluster.nodes:
+            role_name = node.remoter.run(
+                "curl http://169.254.169.254/latest/meta-data/iam/security-credentials/").stdout.strip()
+            assert role_name, "Cant retrieve role name, looks like the IAM role is not configured on the node"
+            creds = node.remoter.run(
+                f'TOKEN=`curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 43200"` && curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/{role_name}').stdout.strip()
+            data = json.loads(creds)
+            access_key_id = data['AccessKeyId']
+            secret_access_key = data['SecretAccessKey']
+            token = data['Token']
+            node.remoter.sudo(shell_script_cmd(f"""\
+            echo 'endpoints:\n  - name: s3.us-east-1.amazonaws.com\n    port: 443\n    https: true\n    aws_region: us-east-1\n    aws_access_key_id: {access_key_id}\n    aws_secret_access_key: {secret_access_key}\n    aws_session_token: {token}' > /etc/scylla/object_storage.yaml
+                """))
+
+        self.log.info("Write data to table")
+        self.run_prepare_write_cmd()
+
+        self.log.info("Disable clusterwide compaction")
+        compaction_ops = CompactionOps(cluster=self.db_cluster)
+        #  Disable keyspace autocompaction cluster-wide since we dont want it to interfere with our restore timing
+        for node in self.db_cluster.nodes:
+            compaction_ops.disable_autocompaction_on_ks_cf(node=node)
+
+        self.log.info("Create and report backup time")
+
+        def backup(scylla_node: BaseNode):
+            scylla_node.run_nodetool("flush")
+            result = scylla_node.run_nodetool('snapshot')
+            snapshot_name = re.findall(r'(\d+)', result.stdout.split("snapshot name")[1])[0]
+            backup_res = scylla_node.run_nodetool(
+                f"backup --endpoint s3.us-east-1.amazonaws.com --bucket manager-backup-tests-us-east-1 --prefix foo/bar/baz --keyspace keyspace1 --table standard1 --snapshot {snapshot_name}")
+            print(f'FOO: {backup_res}')
+
+        backup_threads = []
+        with ExecutionTimer() as backup_timer:
+            for node in self.db_cluster.nodes:
+                thread = threading.Thread(target=backup, args=(node,))
+                backup_threads.append(thread)
+                thread.start()
+            for thread in backup_threads:
+                thread.join()
+        backup_report = {
+            "backup time": int(backup_timer.duration.total_seconds()),
+        }
+        self.report_to_argus(ManagerReportType.BACKUP, backup_report, "Native backup")
