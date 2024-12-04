@@ -45,7 +45,7 @@ from sdcm.tester import ClusterTester
 from sdcm.cluster import TestConfig
 from sdcm.nemesis import MgmtRepair
 from sdcm.utils.adaptive_timeouts import adaptive_timeout, Operations
-from sdcm.utils.common import reach_enospc_on_node, clean_enospc_on_node
+from sdcm.utils.common import reach_enospc_on_node, clean_enospc_on_node, get_data_dir_path
 from sdcm.utils.issues import SkipPerIssues
 from sdcm.utils.loader_utils import LoaderUtilsMixin
 from sdcm.utils.time_utils import ExecutionTimer
@@ -1681,16 +1681,61 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
     def run_read_stress_and_report(self, label):
         stress_queue = []
 
+        # Unrecognized name C1
+        # ./cassandra-stress read cl=ALL duration=1m -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=1)' -mode protocolVersion=4  -rate threads=10 -col 'size=FIXED(1024) n=FIXED(1)' -pop 'dist=gauss(1..1000,500,50)'
         for command in self.params.get('stress_read_cmd'):
-            stress_queue.append(self.run_stress_thread(command, round_robin=True, stop_test_on_failure=False))
+            stress_queue.append(self.run_stress_thread(command, stress_num=2))
+        # stress_queue.append(self.run_stress_thread(
+            # stress_cmd="cassandra-stress read cl=ALL duration=10m -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3)' -mode cql3 native -rate threads=100 -col 'size=FIXED(1024) n=FIXED(1)' -pop 'dist=gauss(1..104857600,52428800,5242880)'",
+            # stress_cmd="cassandra-stress read cl=ALL duration=10m -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3)' -mode cql3 native -rate threads=100 -col 'size=FIXED(1024) n=FIXED(1)'",
+            # stress_cmd="cassandra-stress user no-warmup profile=/tmp/cassandra-stress-range.yaml cl=ALL duration=10m ops'(range_read=1)' -mode cql3 native -rate threads=1",
+            # stats_aggregate_cmds=False))
+            # stress_num=2, stats_aggregate_cmds=True))
 
+        sums = {'op rate': 0.0, 'partition rate': 0.0, 'row rate': 0.0, 'latency mean': 0.0}
+        num_results = 0
         with ExecutionTimer() as stress_timer:
             for stress in stress_queue:
-                assert self.verify_stress_thread(cs_thread_pool=stress), "Read stress command"
+                results = self.get_stress_results(queue=stress)
+                num_results += len(results)
+                for result in results:
+                    for key in sums: sums[key] += float(result[key])
+                    averages = {key: sums[key] / num_results for key in sums}
+        # self.log.info('%16s%10s%14s%16s', 'op-rate', 'partition-rate',
+        #               'row-rate', 'latency-mean')
+        # self.log.info('%16s%10s%14s%16s', averages['op rate'],
+        #               averages['partition rate'],
+        #               averages['row rate'],
+        #               averages['latency mean'])
+
+        # stress_queue = self.run_stress_thread(
+        #     stress_cmd="cassandra-stress read cl=ALL duration=10m -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3)' -mode cql3 native -rate threads=100 -col 'size=FIXED(1024) n=FIXED(1)' -pop 'dist=gauss(1..104857600,52428800,5242880)'",
+        #     stress_num=2, stats_aggregate_cmds=False)
+        # results = self.get_stress_results(queue=stress_queue)
+        # self.log.info('%8s%16s%10s%14s%16s%12s%12s%14s%16s%16s', 'op-rate', 'partition-rate',
+        #               'row-rate', 'latency-mean',
+        #               'latency-median', 'l-94th-pct',
+        #               'l-99th-pct', 'l-99.9th-pct',
+        #               'total-partitions', 'total-err')
+        # for result in results:
+        #     self.log.info('%8s%16s%10s%14s%16s%12s%12s%14s%16s%16s', result['op rate'],
+        #                   result['partition rate'],
+        #                   result['row rate'],
+        #                   result['latency mean'],
+        #                   result['latency median'],
+        #                   result['latency 95th percentile'],
+        #                   result['latency 99th percentile'],
+        #                   result['latency 99.9th percentile'],
+        #                   result['total partitions'],
+        #                   result['total errors'])
         InfoEvent(message=f'Read stress duration: {stress_timer.duration}s.').publish()
 
         read_stress_report = {
             "read time": int(stress_timer.duration.total_seconds()),
+            "op rate": averages['op rate'],
+            "partition rate": averages['partition rate'],
+            "row rate": averages['row rate'],
+            "latency mean": averages['latency mean'],
         }
         self.report_to_argus(ManagerReportType.READ, read_stress_report, label)
 
@@ -1706,17 +1751,21 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
         for node in self.db_cluster.nodes:
             compaction_ops.disable_autocompaction_on_ks_cf(node=node)
 
+        cs_custom_config = get_data_dir_path('cassandra-stress-range.yaml')
+        for node in self.loaders.nodes:
+            node.remoter.send_files(cs_custom_config, '/tmp/cassandra-stress-range.yaml', verbose=True)
+
         manager_tool = mgmt.get_scylla_manager_tool(manager_node=self.monitors.nodes[0])
         mgr_cluster = self.ensure_and_get_cluster(manager_tool)
+
+        self.log.info("Run read test")
+        self.run_read_stress_and_report("Read stress")
 
         self.log.info("Create and report backup time")
         backup_task = self.create_backup_and_report(mgr_cluster, "Backup")
 
         self.log.info("Remove backup")
         backup_task.delete_backup_snapshot()
-
-        self.log.info("Run read test")
-        self.run_read_stress_and_report("Read stress")
 
         self.log.info("Create and report backup time during read stress")
 

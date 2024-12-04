@@ -132,6 +132,10 @@ class ManagerBackupReadResult(GenericResultTable):
         description = "Read timing"
         Columns = [
             ColumnMetadata(name="read time", unit="s", type=ResultType.DURATION, higher_is_better=False),
+            ColumnMetadata(name="op rate", unit="op/s", type=ResultType.FLOAT, higher_is_better=True),
+            ColumnMetadata(name="partition rate", unit="pk/s", type=ResultType.FLOAT, higher_is_better=True),
+            ColumnMetadata(name="row rate", unit="row/s", type=ResultType.FLOAT, higher_is_better=True),
+            ColumnMetadata(name="latency mean", unit="ms", type=ResultType.FLOAT, higher_is_better=False),
         ]
 
 
