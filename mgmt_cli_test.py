@@ -45,7 +45,7 @@ from sdcm.tester import ClusterTester
 from sdcm.cluster import TestConfig
 from sdcm.nemesis import MgmtRepair
 from sdcm.utils.adaptive_timeouts import adaptive_timeout, Operations
-from sdcm.utils.common import reach_enospc_on_node, clean_enospc_on_node
+from sdcm.utils.common import reach_enospc_on_node, clean_enospc_on_node, get_data_dir_path
 from sdcm.utils.issues import SkipPerIssues
 from sdcm.utils.loader_utils import LoaderUtilsMixin
 from sdcm.utils.time_utils import ExecutionTimer
@@ -1605,6 +1605,10 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
         return task
 
     def run_read_stress_and_report(self, label):
+        cs_custom_config = get_data_dir_path('cassandra-stress-range.yaml')
+        for node in self.loaders.nodes:
+            node.remoter.send_files(cs_custom_config, '/tmp/cassandra-stress-range.yaml', verbose=True)
+
         stress_queue = []
 
         for command in self.params.get('stress_read_cmd'):
