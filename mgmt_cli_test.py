@@ -1642,11 +1642,11 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
         self.log.info("Create and report backup time")
         backup_task = self.create_backup_and_report(mgr_cluster, "Backup")
 
-        self.log.info("Remove backup")
-        backup_task.delete_backup_snapshot()
-
         self.log.info("Run read test")
         self.run_read_stress_and_report("Read stress")
+
+        self.log.info("Remove backup")
+        backup_task.delete_backup_snapshot()
 
         self.log.info("Create and report backup time during read stress")
 
