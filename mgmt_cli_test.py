@@ -1639,11 +1639,11 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
         manager_tool = mgmt.get_scylla_manager_tool(manager_node=self.monitors.nodes[0])
         mgr_cluster = self.ensure_and_get_cluster(manager_tool)
 
-        self.log.info("Create and report backup time")
-        backup_task = self.create_backup_and_report(mgr_cluster, "Backup")
-
         self.log.info("Run read test")
         self.run_read_stress_and_report("Read stress")
+
+        self.log.info("Create and report backup time")
+        backup_task = self.create_backup_and_report(mgr_cluster, "Backup")
 
         self.log.info("Remove backup")
         backup_task.delete_backup_snapshot()
