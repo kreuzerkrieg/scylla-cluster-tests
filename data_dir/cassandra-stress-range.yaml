@@ -7,5 +7,5 @@ insert:
 
 queries:
   range_read:
-    cql: select * from standard1 where token(partition_key) >= ? and token(partition_key) < ?
+    cql: select * from standard1 where token(id) >= ? and token(id) < ?
     fields: range
