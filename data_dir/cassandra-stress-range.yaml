@@ -7,5 +7,5 @@ insert:
 
 queries:
   range_read:
-    cql: select * from standard1 where token(key) >= -4570794944214759424 and token(key) < 4621334552741592064 limit 10000
+    cql: select * from standard1 where token(key) >= -4570794944214759424 and token(key) < 4621334552741592064 limit 100
     fields: samerow
