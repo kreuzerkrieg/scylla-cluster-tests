@@ -1,4 +1,3 @@
-
 keyspace: keyspace1
 table: standard1
 
@@ -7,5 +6,5 @@ insert:
 
 queries:
   range_read:
-    cql: select * from standard1 where token(key) >= -4570794944214759424 and token(key) < 4621334552741592064 limit 1
+    cql: select * from standard1 where key > ? LIMIT 100 ALLOW FILTERING BYPASS CACHE
     fields: samerow
