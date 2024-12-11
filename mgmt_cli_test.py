@@ -1661,17 +1661,8 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
         self.log.info("Executing test_backup_restore_benchmark...")
 
         for node in self.db_cluster.nodes:
-            role_name = node.remoter.run(
-                "curl http://169.254.169.254/latest/meta-data/iam/security-credentials/").stdout.strip()
-            assert role_name, "Cant retrieve role name, looks like the IAM role is not configured on the node"
-            creds = node.remoter.run(
-                f'TOKEN=`curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 43200"` && curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/{role_name}').stdout.strip()
-            data = json.loads(creds)
-            access_key_id = data['AccessKeyId']
-            secret_access_key = data['SecretAccessKey']
-            token = data['Token']
             node.remoter.sudo(shell_script_cmd(f"""\
-            echo 'endpoints:\n  - name: s3.us-east-1.amazonaws.com\n    port: 443\n    https: true\n    aws_region: us-east-1\n    aws_access_key_id: {access_key_id}\n    aws_secret_access_key: {secret_access_key}\n    aws_session_token: {token}' > /etc/scylla/object_storage.yaml
+            echo 'endpoints:\n  - name: s3.us-east-1.amazonaws.com\n    port: 443\n    https: true\n    aws_region: us-east-1\n    iam_role_arn: arn:aws:iam::797456418907:instance-profile/qa-scylla-manager-backup-instance-profile\n' > /etc/scylla/object_storage.yaml
                 """))
 
         self.log.info("Write data to table")
