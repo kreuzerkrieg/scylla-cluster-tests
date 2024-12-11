@@ -1662,8 +1662,11 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
 
         for node in self.db_cluster.nodes:
             node.remoter.sudo(shell_script_cmd(f"""\
+            echo 'object_storage_config_file: /etc/scylla/object_storage.yaml\n' >> /etc/scylla/scylla.yaml
             echo 'endpoints:\n  - name: s3.us-east-1.amazonaws.com\n    port: 443\n    https: true\n    aws_region: us-east-1\n    iam_role_arn: arn:aws:iam::797456418907:instance-profile/qa-scylla-manager-backup-instance-profile\n' > /etc/scylla/object_storage.yaml
                 """))
+            node.reload_config()
+
 
         self.log.info("Write data to table")
         self.run_prepare_write_cmd()
