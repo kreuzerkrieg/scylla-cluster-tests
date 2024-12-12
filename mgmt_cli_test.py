@@ -1661,10 +1661,14 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
         self.log.info("Executing test_backup_restore_benchmark...")
 
         for node in self.db_cluster.nodes:
-            node.remoter.sudo(shell_script_cmd(f"""\
+            print(node.remoter.sudo(shell_script_cmd(f"""\
+            find / -name libp11-kit.so.0
+            apt install p11-kit p11-kit-modules
+            mkdir /usr/lib64/pkcs11
+            ln -s /usr/lib/x86_64-linux-gnu/pkcs11/p11-kit-trust.so /usr/lib64/pkcs11/p11-kit-trust.so
             echo 'object_storage_config_file: /etc/scylla/object_storage.yaml\n' >> /etc/scylla/scylla.yaml
             echo 'endpoints:\n  - name: s3.us-east-1.amazonaws.com\n    port: 443\n    https: true\n    aws_region: us-east-1\n    iam_role_arn: arn:aws:iam::797456418907:instance-profile/qa-scylla-manager-backup-instance-profile\n' > /etc/scylla/object_storage.yaml
-                """))
+                """)).stdout)
             node.reload_config()
 
 
