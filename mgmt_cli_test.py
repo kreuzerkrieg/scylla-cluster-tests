@@ -1662,7 +1662,9 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
 
         for node in self.db_cluster.nodes:
             print("FOOO:" + node.remoter.sudo(shell_script_cmd(f"""\
-            find / -name libp11-kit.so.0
+            find / -name io_properties.yaml
+            echo '/etc/scylla.d/io_properties.yaml'
+            cat /etc/scylla.d/io_properties.yaml
             apt install p11-kit p11-kit-modules
             mkdir /usr/lib64/pkcs11
             ln -s /usr/lib/x86_64-linux-gnu/pkcs11/p11-kit-trust.so /usr/lib64/pkcs11/p11-kit-trust.so
