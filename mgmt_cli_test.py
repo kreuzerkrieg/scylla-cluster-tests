@@ -1661,17 +1661,13 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
         self.log.info("Executing test_backup_restore_benchmark...")
 
         for node in self.db_cluster.nodes:
-            print("FOOO:" + node.remoter.sudo(shell_script_cmd(f"""\
-            find / -name io_properties.yaml
-            echo '/etc/scylla.d/io_properties.yaml'
-            cat /etc/scylla.d/io_properties.yaml
+            node.remoter.sudo(shell_script_cmd(f"""\
             apt install p11-kit p11-kit-modules
             mkdir /usr/lib64/pkcs11
             ln -s /usr/lib/x86_64-linux-gnu/pkcs11/p11-kit-trust.so /usr/lib64/pkcs11/p11-kit-trust.so
             echo 'object_storage_config_file: /etc/scylla/object_storage.yaml\n' >> /etc/scylla/scylla.yaml
             echo 'endpoints:\n  - name: s3.us-east-1.amazonaws.com\n    port: 443\n    https: true\n    aws_region: us-east-1\n    iam_role_arn: arn:aws:iam::797456418907:instance-profile/qa-scylla-manager-backup-instance-profile\n' > /etc/scylla/object_storage.yaml
-                """)).stdout)
-            # node.reload_config()
+                """))
             node.restart_scylla_server()
 
 
@@ -1694,15 +1690,35 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
                 f"backup --endpoint s3.us-east-1.amazonaws.com --bucket manager-backup-tests-us-east-1 --prefix foo/bar/baz --keyspace keyspace1 --table standard1 --snapshot {snapshot_name}")
             print(f'FOO: {backup_res}')
 
-        backup_threads = []
-        with ExecutionTimer() as backup_timer:
-            for node in self.db_cluster.nodes:
-                thread = threading.Thread(target=backup, args=(node,))
-                backup_threads.append(thread)
-                thread.start()
-            for thread in backup_threads:
-                thread.join()
-        backup_report = {
-            "backup time": int(backup_timer.duration.total_seconds()),
-        }
-        self.report_to_argus(ManagerReportType.BACKUP, backup_report, "Native backup")
+        def backup_and_report(label):
+            backup_threads = []
+            with ExecutionTimer() as backup_timer:
+                for node in self.db_cluster.nodes:
+                    thread = threading.Thread(target=backup, args=(node,))
+                    backup_threads.append(thread)
+                    thread.start()
+                for thread in backup_threads:
+                    thread.join()
+            backup_report = {
+                "backup time": int(backup_timer.duration.total_seconds()),
+            }
+            self.report_to_argus(ManagerReportType.BACKUP, backup_report, "label")
+
+        backup_and_report("Native backup")
+        self.log.info("Run read test")
+        self.run_read_stress_and_report("Read stress")
+
+        self.log.info("Create and report backup time during read stress")
+
+        backup_thread = threading.Thread(target=backup_and_report,
+                                         kwargs={"label": "Native backup during read stress"})
+
+        read_stress_thread = threading.Thread(target=self.run_read_stress_and_report,
+                                              kwargs={"label": "Read stress during backup"})
+        backup_thread.start()
+        read_stress_thread.start()
+
+        backup_thread.join()
+        read_stress_thread.join()
+
+
