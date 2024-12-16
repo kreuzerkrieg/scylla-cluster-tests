@@ -1670,7 +1670,6 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
                 """))
             node.restart_scylla_server()
 
-
         self.log.info("Write data to table")
         self.run_prepare_write_cmd()
 
@@ -1702,7 +1701,7 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
             backup_report = {
                 "backup time": int(backup_timer.duration.total_seconds()),
             }
-            self.report_to_argus(ManagerReportType.BACKUP, backup_report, "label")
+            self.report_to_argus(ManagerReportType.BACKUP, backup_report, label)
 
         backup_and_report("Native backup")
         self.log.info("Run read test")
@@ -1720,5 +1719,3 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
 
         backup_thread.join()
         read_stress_thread.join()
-
-
