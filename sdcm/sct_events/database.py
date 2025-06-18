@@ -87,7 +87,7 @@ class ReactorStalledMixin(Generic[T_log_event]):
 
 # cause this is warning level, it's need to be before WARNING being suppressed
 DatabaseLogEvent.add_subevent_type(
-    "OVERSIZED_ALLOCATION", severity=Severity.ERROR, regex="seastar_memory - oversized allocation:"
+    "OVERSIZED_ALLOCATION", severity=Severity.WARNING, regex="seastar_memory - oversized allocation:"
 )
 DatabaseLogEvent.add_subevent_type("WARNING", severity=Severity.SUPPRESS, regex=r"(^WARNING|!\s*?WARNING).*\[shard.*\]")
 DatabaseLogEvent.add_subevent_type("NO_SPACE_ERROR", severity=Severity.ERROR, regex="No space left on device")

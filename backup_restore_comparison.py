@@ -5,6 +5,8 @@ import threading
 import uuid
 from enum import Enum
 
+import boto3
+
 from argus.client.generic_result import Status
 from mgmt_cli_test import ManagerTestFunctionsMixIn
 from sdcm import mgmt
@@ -162,7 +164,7 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
                     backup_size_res.stdout[:backup_size_res.stdout.find("\t")])
 
         backup_res = scylla_node.run_nodetool(
-            f"backup --endpoint s3.us-east-1.amazonaws.com --bucket manager-backup-tests-us-east-1  --prefix {self.base_prefix}/{snapshot_name} --keyspace keyspace1 --table standard1 --snapshot {snapshot_name}")
+            f"backup --endpoint s3.us-east-1.amazonaws.com --bucket manager-backup-tests-us-east-1 --prefix {self.base_prefix}/{scylla_node.uuid} --keyspace keyspace1 --table standard1 --snapshot {snapshot_name}")
         if backup_res is not None and backup_res.exit_status != 0:
             raise Exception(f"Backup failed: {backup_res.stdout}")
 
@@ -190,41 +192,47 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
         for toc in self.node_sstables[scylla_node.uuid]:
             sstables_list.append(os.path.basename(toc))
 
-        chunks = []
-        chunk = ""
-        for toc in sstables_list:
-            if len(chunk) + len(toc) > 1024 * 1024:
-                chunks.append(chunk)
-                chunk = toc
-            else:
-                chunk += " " + toc
-        if chunk:
-            chunks.append(chunk)
+        text = "\n".join(sstables_list)
+        filename = f'/tmp/{scylla_node.uuid}-sstables.txt'
+        with open(filename, "w") as file:
+            file.write(text)
 
-        for chunk in chunks:
-            res = scylla_node.run_nodetool(
-                f"restore --endpoint s3.us-east-1.amazonaws.com --bucket manager-backup-tests-us-east-1 --scope node --prefix {self.base_prefix}/{self.snapshot_ids[scylla_node.uuid]} --keyspace keyspace1 --table standard1 {chunk}")
-            if res is not None and res.exit_status != 0:
-                raise Exception(f"Restore failed: {res.stdout}")
-        res = scylla_node.run_nodetool("repair keyspace1 standard1")
+        scylla_node.remoter.send_files(src=filename, dst=filename)
+        res = scylla_node.run_nodetool(
+            f"restore --endpoint s3.us-east-1.amazonaws.com --bucket manager-backup-tests-us-east-1 --scope node --prefix {self.base_prefix}/{scylla_node.uuid} --keyspace keyspace1 --table standard1 --sstables-file-list {filename}")
         if res is not None and res.exit_status != 0:
-            raise Exception(f"Repair failed: {res.stdout}")
+            raise Exception(f"Restore failed: {res.stdout}")
 
     def restore_and_report(self, label):
         self.set_balancing(False)
         restore_threads = []
-        with ExecutionTimer() as restore_timer:
+        with ExecutionTimer() as lns_timer:
             for node in self.db_cluster.nodes:
                 thread = threading.Thread(target=self.restore, args=(node,))
                 restore_threads.append(thread)
                 thread.start()
             for thread in restore_threads:
                 thread.join()
+
         restore_report = {
             "Size": format_size(sum(self.node_backup_size.values()) / len(self.node_backup_size.values())),
-            "Time": int(restore_timer.duration.total_seconds()),
+            "Time": int(lns_timer.duration.total_seconds()),
         }
-        self.report_to_argus(ManagerReportType.BACKUP, restore_report, label)
+
+        self.report_to_argus(ManagerReportType.BACKUP, restore_report, "nodetool restore")
+
+        # with ExecutionTimer() as repair_timer:
+        #     res = self.db_cluster.nodes[0].run_nodetool("cluster repair --keyspace keyspace1 --table standard1")
+        #     if res is not None and res.exit_status != 0:
+        #         raise Exception(f"Repair failed: {res.stdout}")
+        #
+        # restore_report = {
+        #     "Size": format_size(sum(self.node_backup_size.values()) / len(self.node_backup_size.values())),
+        #     "Time": int(repair_timer.duration.total_seconds()),
+        # }
+        #
+        # self.report_to_argus(ManagerReportType.BACKUP, restore_report, "nodetool repair")
+
         self.set_balancing(True)
 
     def set_balancing(self, balancing: bool):
@@ -237,14 +245,50 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
     def test_just_native_backup_restore(self):
         self.log.info("Executing test_backup_restore_benchmark...")
 
+        # for node in self.db_cluster.nodes:
+        #     res = node.remoter.sudo(shell_script_cmd(f"""\
+        #     df
+        #         """))
+        #     print (res.stdout)
+        #     assert False
+
+        script = """\
+set -eux
+
+JOURNAL_PATH='/var/lib/scylla/systemd-journal'
+OVERRIDE_FILE='/etc/systemd/journald.conf.d/override.conf'
+
+echo [+] Creating new journal directory at ${JOURNAL_PATH}
+mkdir -p /var/lib/scylla/systemd-journal
+chown root:systemd-journal /var/lib/scylla/systemd-journal
+chmod 2755 /var/lib/scylla/systemd-journal
+
+echo [+] Backing up existing journal logs - if any
+if [ -d /var/log/journal ]; then
+    mv /var/log/journal '/var/log/journal.bak.$(date +%s)'
+fi
+
+echo [+] Creating symbolic link
+ln -s /var/lib/scylla/systemd-journal /var/log/journal
+
+echo [+] Writing journald configuration
+mkdir -p '$(dirname /etc/systemd/journald.conf.d/override.conf)'
+echo '[Journal]
+Storage=persistent
+RateLimitInterval=0
+RateLimitBurst=0' | tee /etc/systemd/journald.conf.d/override.conf
+
+echo [✓] Journald config written.
+systemctl restart systemd-journald
+echo [✓] Journald reconfigured and restarted
+"""
+
         for node in self.db_cluster.nodes:
-            node.remoter.sudo(shell_script_cmd(f"""\
-            apt install p11-kit p11-kit-modules
-            mkdir /usr/lib64/pkcs11
-            ln -s /usr/lib/x86_64-linux-gnu/pkcs11/p11-kit-trust.so /usr/lib64/pkcs11/p11-kit-trust.so
-            echo 'object_storage_config_file: /etc/scylla/object_storage.yaml\n' >> /etc/scylla/scylla.yaml
-            echo 'endpoints:\n  - name: s3.us-east-1.amazonaws.com\n    port: 443\n    https: true\n    aws_region: us-east-1\n    iam_role_arn: arn:aws:iam::797456418907:instance-profile/qa-scylla-manager-backup-instance-profile\n' > /etc/scylla/object_storage.yaml
+            node.remoter.sudo(shell_script_cmd("""\
+            echo '\nobject_storage_endpoints:\n  - name: s3.us-east-1.amazonaws.com\n    port: 443\n    https: true\n    aws_region: us-east-1\n    iam_role_arn: arn:aws:iam::797456418907:instance-profile/qa-scylla-manager-backup-instance-profile\n' >> /etc/scylla/scylla.yaml
                 """))
+            # res = node.remoter.sudo(shell_script_cmd(script))
+            # print (res.stdout)
             node.restart_scylla_server()
 
         self.log.info("Write data to table")
@@ -259,13 +303,136 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
 
         self.restore_and_report("Native restore")
 
+    def test_native_restore_from_backup(self):
+        self.log.info("Executing test_backup_restore_benchmark...")
+
+        for node in self.db_cluster.nodes:
+            node.remoter.sudo(shell_script_cmd("""\
+                echo '\nobject_storage_endpoints:\n  - name: s3.us-east-1.amazonaws.com\n    port: 443\n    https: true\n    aws_region: us-east-1\n    iam_role_arn: arn:aws:iam::797456418907:instance-profile/qa-scylla-manager-backup-instance-profile\n' >> /etc/scylla/scylla.yaml
+                    """))
+            node.restart_scylla_server()
+
+        self.db_cluster.nodes[0].run_cqlsh(
+            '''CREATE KEYSPACE keyspace1 WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor': 3} AND tablets = {'enabled': true};''')
+        self.db_cluster.nodes[0].run_cqlsh('''CREATE TABLE keyspace1.standard1
+                                              (
+                                                  key  blob,
+                                                  "C0" blob,
+                                                  PRIMARY KEY (key)
+                                              ) WITH bloom_filter_fp_chance = 0.01
+                                                    AND caching = {'keys': 'ALL', 'rows_per_partition': 'ALL'}
+                                                    AND comment = ''
+                                                    AND compaction = {'class': 'IncrementalCompactionStrategy'}
+                                                    AND compression = {}
+                                                    AND crc_check_chance = 1
+                                                    AND default_time_to_live = 0
+                                                    AND gc_grace_seconds = 864000
+                                                    AND max_index_interval = 2048
+                                                    AND memtable_flush_period_in_ms = 0
+                                                    AND min_index_interval = 128
+                                                    AND speculative_retry = '99.0PERCENTILE'
+                                                    AND tombstone_gc = {'mode': 'disabled'};
+                                           ''')
+
+        node_directories = ["9c3768b6-d9d7-11f0-9a06-0215e3da214b", "9c9eb8a4-d9d7-11f0-9ff1-02599936cbbf",
+                            "9d3675a4-d9d7-11f0-9d23-0246fe8624d5", "9d682e96-d9d7-11f0-9781-029e2ba14dc7",
+                            "9dc5722c-d9d7-11f0-8a7c-025591442401", "9e3415d8-d9d7-11f0-9ba6-0270b0040487"]
+
+        def list_toc_files(bucket, prefix):
+            s3 = boto3.client("s3")
+            paginator = s3.get_paginator("list_objects_v2")
+
+            toc_files = []
+
+            for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+                for obj in page.get("Contents", []):
+                    key = obj["Key"]
+                    if key.endswith("-big-TOC.txt"):
+                        filename = os.path.basename(key)
+                        toc_files.append(filename)
+
+            return toc_files
+
+        toc_map = {}  # {node.uuid: [toc files]}
+
+        for node in self.db_cluster.nodes:
+            s3_dir = node_directories[uuid.UUID(node.uuid).int % len(self.db_cluster.nodes)]
+            toc_list = list_toc_files(
+                "manager-backup-tests-permanent-snapshots-us-east-1",
+                f"ernest-sct-tests/6TB-tablets-RF3-6node/{s3_dir}"
+            )
+            toc_map[node.uuid] = toc_list
+
+        def restore(scylla_node: BaseNode, toc_list):
+            filename = f'/tmp/{scylla_node.uuid}-sstables.txt'
+            with open(filename, "w") as file:
+                file.write("\n".join(toc_list))
+            scylla_node.remoter.send_files(src=filename, dst=filename)
+
+            s3_dir = node_directories[uuid.UUID(scylla_node.uuid).int % len(self.db_cluster.nodes)]
+
+            self.log.info(f"FOOOOOO starting restore for {scylla_node.host_id}")
+            res = scylla_node.run_nodetool(
+                f"restore --endpoint s3.us-east-1.amazonaws.com "
+                f"--bucket manager-backup-tests-permanent-snapshots-us-east-1 "
+                f"--scope node "
+                f"--prefix ernest-sct-tests/6TB-tablets-RF3-6node/{s3_dir} "
+                f"--keyspace keyspace1 --table standard1 "
+                f"--sstables-file-list {filename}"
+            )
+
+            self.log.info(f"FOOOOOO restore ended for{scylla_node.host_id}\n{res.stdout}")
+            if res is not None and res.exit_status != 0:
+                raise Exception(f"Restore failed: {res.stdout}")
+
+        self.set_balancing(False)
+        restore_threads = []
+        with ExecutionTimer() as lns_timer:
+            for node in self.db_cluster.nodes:
+                thread = threading.Thread(target=restore, args=(node, toc_map[node.uuid]))
+                restore_threads.append(thread)
+                thread.start()
+            for thread in restore_threads:
+                thread.join()
+
+        restore_report = {
+            # "Size": format_size(sum(self.node_backup_size.values()) / len(self.node_backup_size.values())),
+            "Size": format_size(3000000000),
+            "Time": int(lns_timer.duration.total_seconds()),
+        }
+
+        self.report_to_argus(ManagerReportType.BACKUP, restore_report, "nodetool restore")
+
+        # self.log.info("Write data to table")
+        # self.run_prepare_write_cmd()
+        #
+        # def backup(scylla_node: BaseNode):
+        #     scylla_node.run_nodetool("flush")
+        #
+        #     result = scylla_node.run_nodetool('snapshot')
+        #     snapshot_name = re.findall(r'(\d+)', result.stdout.split("snapshot name")[1])[0]
+        #
+        #     backup_res = scylla_node.run_nodetool(
+        #         f"backup --endpoint s3.us-east-1.amazonaws.com --bucket manager-backup-tests-permanent-snapshots-us-east-1 --prefix ernest-sct-tests/6TB-tablets-RF3-6node/{scylla_node.uuid} --keyspace keyspace1 --table standard1 --snapshot {snapshot_name}")
+        #     if backup_res is not None and backup_res.exit_status != 0:
+        #         raise Exception(f"Backup failed: {backup_res.stdout}")
+        #
+        # self.log.info("Create and report backup time")
+        # backup_threads = []
+        # for node in self.db_cluster.nodes:
+        #     thread = threading.Thread(target=backup, args=(node,))
+        #     backup_threads.append(thread)
+        #     thread.start()
+        # for thread in backup_threads:
+        #     thread.join()
+
     def test_just_backup_restore(self):
 
         self.log.info("Write data to table")
         self.run_prepare_write_cmd()
 
         manager_tool = mgmt.get_scylla_manager_tool(manager_node=self.monitors.nodes[0])
-        mgr_cluster = self.ensure_and_get_cluster(manager_tool)
+        mgr_cluster = self.db_cluster.get_cluster_manager(force_add=True)
         backup_task = self.create_backup_and_report(mgr_cluster, "`rclone` based backup")
 
         self.db_cluster.nodes[0].run_cqlsh(f'TRUNCATE keyspace1.standard1')
@@ -280,7 +447,7 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
         self.run_prepare_write_cmd()
         self.set_balancing(False)
         manager_tool = mgmt.get_scylla_manager_tool(manager_node=self.monitors.nodes[0])
-        mgr_cluster = self.ensure_and_get_cluster(manager_tool)
+        mgr_cluster = self.db_cluster.get_cluster_manager(force_add=True)
         backup_task = self.create_backup_and_report(mgr_cluster, "`rclone` based backup")
 
         self.run_read_stress_and_report(" w/o concurrent backup")
@@ -303,12 +470,8 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
 
     def test_native_backup_restore(self):
         for node in self.db_cluster.nodes:
-            node.remoter.sudo(shell_script_cmd(f"""\
-            apt install p11-kit p11-kit-modules
-            mkdir /usr/lib64/pkcs11
-            ln -s /usr/lib/x86_64-linux-gnu/pkcs11/p11-kit-trust.so /usr/lib64/pkcs11/p11-kit-trust.so
-            echo 'object_storage_config_file: /etc/scylla/object_storage.yaml\n' >> /etc/scylla/scylla.yaml
-            echo 'endpoints:\n  - name: s3.us-east-1.amazonaws.com\n    port: 443\n    https: true\n    aws_region: us-east-1\n    iam_role_arn: arn:aws:iam::797456418907:instance-profile/qa-scylla-manager-backup-instance-profile\n' > /etc/scylla/object_storage.yaml
+            node.remoter.sudo(shell_script_cmd("""\
+            echo '\nobject_storage_endpoints:\n  - name: s3.us-east-1.amazonaws.com\n    port: 443\n    https: true\n    aws_region: us-east-1\n    iam_role_arn: arn:aws:iam::797456418907:instance-profile/qa-scylla-manager-backup-instance-profile\n' >> /etc/scylla/scylla.yaml
                 """))
             node.restart_scylla_server()
 
