@@ -78,6 +78,7 @@ client_encrypt: false
 peer_verification: true  # when client encryption is used, peer verification is enabled by default
 client_encrypt_mtls: false
 server_encrypt_mtls: false
+mgmt_skip_post_restore_stress_read: false
 
 scylla_encryption_options: ''
 

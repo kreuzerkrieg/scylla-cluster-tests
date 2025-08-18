@@ -169,7 +169,8 @@ sizes:  # size of backed up dataset in GB
       rf: 3
     one_one_restore_params: None
   2tb_1t_ics:
-    tag: "sm_20250807135410UTC"
+    # tag: "sm_20250807135410UTC" # Tablets
+    tag: "sm_20250822085830UTC" # Vnodes
     locations:
       - "s3:manager-backup-tests-permanent-snapshots-us-east-1"
     exp_timeout: 57600  # 16 hours
