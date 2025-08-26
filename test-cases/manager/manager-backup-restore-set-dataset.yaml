@@ -14,15 +14,15 @@ region_name: us-east-1
 append_scylla_yaml:
   auto_snapshot: false
   object_storage_endpoints:
-    name: s3.us-east-1.amazonaws.com
+    - name: s3.us-east-1.amazonaws.com
       port: 443
       https: true
       aws_region: us-east-1
-    kms_hosts:
-      auto:
-        aws_region: us-east-1
-        aws_use_ec2_credentials: true
-        master_key: alias/testid-1a846c15-018e-448a-89bf-fd65ad92f1d2
+  kms_hosts:
+    auto:
+      aws_region: us-east-1
+      aws_use_ec2_credentials: true
+      master_key: alias/testid-1a846c15-018e-448a-89bf-fd65ad92f1d2
 
 n_db_nodes: 3
 n_loaders: 4
