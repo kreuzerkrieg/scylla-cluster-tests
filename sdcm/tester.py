@@ -832,8 +832,7 @@ class ClusterTester(db_stats.TestStatsMixin, unittest.TestCase):
         )
 
     def prepare_kms_host(self) -> None:
-        version_supports_kms = (self.params.is_enterprise and
-                                ComparableScyllaVersion(self.params.scylla_version) >= '2023.1.3')
+        version_supports_kms = True
         backend_support_kms = self.params.get('cluster_backend') in ('aws',)
         kms_configured_in_sct = self.params.get('scylla_encryption_options')
         test_uses_oracle = self.params.get("db_type") == "mixed_scylla"
