@@ -1759,7 +1759,7 @@ class ManagerRestoreBenchmarkTests(ManagerTestFunctionsMixIn):
 
         self.run_verification_read_stress()
 
-    def test_restore_from_precreated_backup(self, snapshot_name: str, object_storage_method: ObjectStorageUploadMode, restore_outside_manager: bool = False):
+    def test_restore_from_precreated_backup(self, snapshot_name: str, object_storage_method: ObjectStorageUploadMode, restore_outside_manager: bool = False, extra_params: str = None):
         """The test restores the schema and data from a pre-created backup and runs the verification read stress.
         1. Define the backup to restore from
         2. Run restore schema to empty cluster
@@ -1779,7 +1779,7 @@ class ManagerRestoreBenchmarkTests(ManagerTestFunctionsMixIn):
         locations = snapshot_data.locations
         self.log.info("Restoring the schema")
         self.restore_backup_with_task(mgr_cluster=mgr_cluster, snapshot_tag=snapshot_data.tag, timeout=600,
-                                      restore_schema=True, location_list=locations)
+                                      restore_schema=True, location_list=locations, extra_params=extra_params)
 
         if self.params.get("use_cloud_manager"):
             self.log.info("Delete scheduled backup task to not interfere")
@@ -1834,7 +1834,7 @@ class ManagerRestoreBenchmarkTests(ManagerTestFunctionsMixIn):
         if reuse_snapshot_name := self.params.get('mgmt_reuse_backup_snapshot_name'):
             self.log.info("Executing test_restore_from_precreated_backup with method Native...")
             self.test_restore_from_precreated_backup(
-                reuse_snapshot_name, object_storage_method=ObjectStorageUploadMode.NATIVE)
+                reuse_snapshot_name, object_storage_method=ObjectStorageUploadMode.NATIVE, extra_params="--batch-size 1000000")
         else:
             self.log.info("Executing test_backup_and_restore_only_data with method Native...")
             self.test_backup_and_restore_only_data(object_storage_method=ObjectStorageUploadMode.NATIVE)
