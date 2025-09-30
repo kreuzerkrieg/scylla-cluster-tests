@@ -11,6 +11,6 @@ stress_cmd: [ "cassandra-stress read cl=QUORUM duration=60m -schema 'replication
               "cassandra-stress read cl=QUORUM duration=60m -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=1)' -mode cql3 native  -rate threads=80 -col 'size=FIXED(1024) n=FIXED(1)'" ]
 
 instance_type_db: 'i7i.4xlarge'
-instance_type_loader: 'c6i.8xlarge'
+instance_type_loader: 'i7i.4xlarge'
 n_db_nodes: 1
 n_loaders: 4
