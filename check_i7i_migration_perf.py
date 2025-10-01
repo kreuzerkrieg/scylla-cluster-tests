@@ -5,11 +5,11 @@ from sdcm.remote import shell_script_cmd
 class i7iMigrationPerf(ManagerTestFunctionsMixIn):
 
     def test_migration(self):
-        for node in self.db_cluster.nodes:
-            node.remoter.sudo(shell_script_cmd(f"""\
-            echo 'stream_io_throughput_mb_per_sec: 0\n' >> /etc/scylla/scylla.yaml
-                """))
-            node.restart_scylla_server()
+        # for node in self.db_cluster.nodes:
+        #     node.remoter.sudo(shell_script_cmd(f"""\
+        #     echo 'stream_io_throughput_mb_per_sec: 0\n' >> /etc/scylla/scylla.yaml
+        #         """))
+        #     node.restart_scylla_server()
 
         self.log.info("Write data to table")
         self.run_prepare_write_cmd()
@@ -32,10 +32,10 @@ class i7iMigrationPerf(ManagerTestFunctionsMixIn):
         new_nodes = self.db_cluster.add_nodes(count=1, enable_auto_bootstrap=True)
         self.db_cluster.wait_for_init(node_list=new_nodes)
         self.monitors.reconfigure_scylla_monitoring()
-        for node in new_nodes:
-            node.remoter.sudo(shell_script_cmd(f"""\
-            echo 'stream_io_throughput_mb_per_sec: 0\n' >> /etc/scylla/scylla.yaml
-                """))
-            node.restart_scylla_server()
+        # for node in new_nodes:
+        #     node.remoter.sudo(shell_script_cmd(f"""\
+        #     echo 'stream_io_throughput_mb_per_sec: 0\n' >> /etc/scylla/scylla.yaml
+        #         """))
+        #     node.restart_scylla_server()
 
         self.get_stress_results(self.run_stress_thread(self.params.get('stress_cmd')[0], duration=30, stress_num=2))
