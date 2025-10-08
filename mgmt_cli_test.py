@@ -24,7 +24,8 @@ from sdcm.argus_results import (send_manager_benchmark_results_to_argus, send_ma
 from sdcm.mgmt import ScyllaManagerError, TaskStatus, HostStatus, HostSsl, HostRestStatus
 from sdcm.mgmt.argus_report import report_to_argus, ManagerReportType
 from sdcm.mgmt.cli import RestoreTask
-from sdcm.mgmt.common import reconfigure_scylla_manager, get_persistent_snapshots, get_backup_size
+from sdcm.mgmt.common import reconfigure_scylla_manager, get_persistent_snapshots, get_backup_size, \
+    ObjectStorageUploadMode
 from sdcm.provision.helpers.certificate import TLSAssets
 from sdcm.nemesis import MgmtRepair
 from sdcm.utils.adaptive_timeouts import adaptive_timeout, Operations
