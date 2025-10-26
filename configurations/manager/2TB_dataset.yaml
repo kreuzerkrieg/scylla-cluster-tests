@@ -1,4 +1,4 @@
-test_duration: 4320
+test_duration: 120
 
 prepare_write_cmd: ["cassandra-stress write cl=ONE n=536870912 -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3)' -mode cql3 native  -rate threads=500 -col 'size=FIXED(1024) n=FIXED(1)' -pop seq=1..536870912",
                     "cassandra-stress write cl=ONE n=536870912 -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3)' -mode cql3 native  -rate threads=500 -col 'size=FIXED(1024) n=FIXED(1)' -pop seq=536870913..1073741824",
