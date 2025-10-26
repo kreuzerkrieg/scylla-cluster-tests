@@ -1036,9 +1036,9 @@ class ManagerRestoreBenchmarkTests(ManagerTestFunctionsMixIn):
             self.log.info("Grant admin permissions to scylla_manager user")
             self.db_cluster.nodes[0].run_cqlsh(cmd="grant scylla_admin to scylla_manager")
 
-        self.log.info("Restoring the schema")
-        self.restore_backup_with_task(mgr_cluster=mgr_cluster, snapshot_tag=snapshot_data.tag, timeout=600,
-                                      restore_schema=True, location_list=locations)
+        # self.log.info("Restoring the schema")
+        # self.restore_backup_with_task(mgr_cluster=mgr_cluster, snapshot_tag=snapshot_data.tag, timeout=600,
+        #                               restore_schema=True, location_list=locations)
 
         if restore_outside_manager:
             self.log.info("Restoring the data outside the Manager")
