@@ -185,7 +185,7 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
                 f"restore --endpoint s3.us-east-1.amazonaws.com "
                 f"--bucket manager-backup-tests-permanent-snapshots-us-east-1 "
                 f"--scope all "
-                f"--primary_replica_only true "
+                f"--primary-replica-only true "
                 f"--prefix ernest-sct-tests/6TB-tablets-RF3-6node/{s3_dir} "
                 f"--keyspace keyspace1 --table standard1 "
                 f"--sstables-file-list {filename}"
