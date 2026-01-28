@@ -184,7 +184,6 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
             # Run restore for this specific directory
             res = scylla_node.run_nodetool(
                 f"restore "
-                f"--primary-replica-only true "
                 f"--endpoint s3.us-east-1.amazonaws.com "
                 f"--bucket manager-backup-tests-permanent-snapshots-us-east-1 "
                 f"--scope all "
