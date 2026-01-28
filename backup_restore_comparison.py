@@ -177,7 +177,8 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
 
             with open(filename, "w") as f:
                 f.write("\n".join(toc_list))
-
+            self.log.info(
+                f"FOOOBAR: Restoring on node {scylla_node.uuid} from TOC file {filename} with contents:\n{toc_list}")
             scylla_node.remoter.send_files(src=filename, dst=filename)
 
             # Run restore for this specific directory
