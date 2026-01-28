@@ -196,12 +196,15 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
                 raise Exception(f"Restore failed: {res.stdout}")
 
         self.set_balancing(False)
-        restore_threads = []
         with ExecutionTimer() as lns_timer:
-            for node in self.db_cluster.nodes:
-                node_uuid = node.uuid
+            # Transpose: iterate over directories first
+            for s3_dir in node_directories:
+                restore_threads = []
 
-                for s3_dir, toc_list in toc_map[node_uuid].items():
+                for node in self.db_cluster.nodes:
+                    node_uuid = node.uuid
+                    toc_list = toc_map[node_uuid].get(s3_dir, [])
+
                     if not toc_list:
                         continue
 
@@ -212,8 +215,10 @@ class ManagerBackupRestoreConcurrentTests(ManagerTestFunctionsMixIn):
                     restore_threads.append(thread)
                     thread.start()
 
-            for thread in restore_threads:
-                thread.join()
+                # Wait for all nodes to finish restoring this directory
+                for thread in restore_threads:
+                    thread.join()
+
 
         restore_report = {
             # "Size": format_size(sum(self.node_backup_size.values()) / len(self.node_backup_size.values())),
