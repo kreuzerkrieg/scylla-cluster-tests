@@ -1,4 +1,7 @@
 test_duration: 255
+
+pre_create_keyspace: "CREATE KEYSPACE keyspace1 WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor': 3} AND storage = {'type': 'S3', 'endpoint': 's3.us-east-1.amazonaws.com', 'bucket': 'manager-backup-tests-us-east-1'};"
+
 stress_cmd: ["cassandra-stress write cl=QUORUM duration=180m -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3) compaction(strategy=SizeTieredCompactionStrategy)' -mode cql3 native -rate threads=1000 -pop seq=1..10000000 -log interval=5"
              ]
 
@@ -19,3 +22,6 @@ space_node_threshold: 64424
 
 gce_n_local_ssd_disk_db: 2
 run_db_node_benchmarks: false
+
+experimental_features:
+  - keyspace-storage-options

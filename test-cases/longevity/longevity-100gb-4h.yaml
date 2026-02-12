@@ -1,5 +1,7 @@
 test_duration: 330
 
+pre_create_keyspace: "CREATE KEYSPACE keyspace1 WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor': 3} AND storage = {'type': 'S3', 'endpoint': 's3.us-east-1.amazonaws.com', 'bucket': 'manager-backup-tests-us-east-1'};"
+
 prepare_write_cmd:  "cassandra-stress write cl=QUORUM n=20971520 -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3) compaction(strategy=SizeTieredCompactionStrategy)' -mode cql3 native -rate threads=80 -pop seq=1..20971520 -col 'n=FIXED(10) size=FIXED(512)' -log interval=5"
 
 stress_cmd: ["cassandra-stress write cl=QUORUM duration=240m -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3) compaction(strategy=SizeTieredCompactionStrategy)' -mode cql3 native -rate threads=40 -pop seq=1..20971520 -col 'n=FIXED(10) size=FIXED(512)' -log interval=5",
@@ -10,7 +12,7 @@ n_db_nodes: 6
 n_loaders: 2
 seeds_num: 3
 
-instance_type_db: 'i4i.4xlarge'
+instance_type_db: 'i4i.xlarge'
 
 nemesis_class_name: 'SisyphusMonkey'
 nemesis_seed: '032'
@@ -26,3 +28,6 @@ sstable_size: 100
 
 hinted_handoff: 'enabled'
 parallel_node_operations: true
+
+experimental_features:
+  - keyspace-storage-options
