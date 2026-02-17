@@ -3638,6 +3638,7 @@ class ClusterTester(unittest.TestCase):
 
     def get_truncated_time_from_system_truncated(self, session, table_id):
         query = "SELECT truncated_at FROM system.truncated WHERE table_uuid={}".format(table_id)
+        session.default_timeout = 1200.0
         truncated_time = self.rows_to_list(session.execute(query))
         return truncated_time[0]
 

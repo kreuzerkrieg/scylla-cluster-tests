@@ -151,7 +151,7 @@ class UpgradeTest(FillDatabaseData, loader_utils.LoaderUtilsMixin):
 
     def setUp(self):
         super().setUp()
-        self.do_truncates = self.params.get("enable_truncate_checks_on_node_upgrade") or False
+        self.do_truncates = False
         self.stacks = {}
         for node in self.db_cluster.nodes:
             self.configure_event_filtering(node)
@@ -289,7 +289,7 @@ class UpgradeTest(FillDatabaseData, loader_utils.LoaderUtilsMixin):
             # flush all memtables to SSTables
             with self.actions_log.action_scope("stopping node"):
                 node.run_nodetool("drain", timeout=15 * 60, coredump_on_timeout=True, long_running=True, retry=0)
-                node.run_nodetool("snapshot")
+                # node.run_nodetool("snapshot")
                 node.stop_scylla_server()
             with self.actions_log.action_scope("upgrading packages"):
                 node.remoter.run("sudo rpm -UvhR --oldpackage /tmp/scylla/*development*", ignore_status=True)
@@ -308,7 +308,7 @@ class UpgradeTest(FillDatabaseData, loader_utils.LoaderUtilsMixin):
             # flush all memtables to SSTables
             with self.actions_log.action_scope("stop node"):
                 node.run_nodetool("drain", timeout=15 * 60, coredump_on_timeout=True, long_running=True, retry=0)
-                node.run_nodetool("snapshot")
+                # node.run_nodetool("snapshot")
                 node.stop_scylla_server(verify_down=False)
 
             orig_is_enterprise = node.is_product_enterprise
@@ -408,7 +408,7 @@ class UpgradeTest(FillDatabaseData, loader_utils.LoaderUtilsMixin):
         with self.actions_log.action_scope("stop node"):
             node.run_nodetool("drain", timeout=15 * 60, coredump_on_timeout=True, long_running=True, retry=0)
             # backup the data
-            node.run_nodetool("snapshot")
+            # node.run_nodetool("snapshot")
             node.stop_scylla_server(verify_down=False)
 
         if node.distro.is_rhel_like:

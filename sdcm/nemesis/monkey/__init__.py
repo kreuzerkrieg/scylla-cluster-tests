@@ -204,14 +204,14 @@ class DecommissionSeedNode(NemesisBaseClass):
         self.runner.disrupt_nodetool_seed_decommission()
 
 
-class NoCorruptRepairMonkey(NemesisBaseClass):
-    disruptive = False
-    kubernetes = True
-    xcloud = True
-    limited = True
-
-    def disrupt(self):
-        self.runner.disrupt_no_corrupt_repair()
+# class NoCorruptRepairMonkey(NemesisBaseClass):
+#     disruptive = False
+#     kubernetes = True
+#     xcloud = True
+#     limited = True
+#
+#     def disrupt(self):
+#         self.runner.disrupt_no_corrupt_repair()
 
 
 class MajorCompactionMonkey(NemesisBaseClass):

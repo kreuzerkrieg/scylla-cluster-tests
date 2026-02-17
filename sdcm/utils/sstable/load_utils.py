@@ -68,7 +68,7 @@ class SstableLoadUtils:
         node,
         test_data: TestDataInventory,
         keyspace_name: str = "keyspace1",
-        table_name=None,
+        table_name: str = "standard1",
         create_schema: bool = False,
         is_cloud_cluster=False,
         **kwargs,
@@ -110,22 +110,16 @@ class SstableLoadUtils:
                     node=node, schema_file_and_path=f"{tmp_folder.folder_name}/schema.cql", session=kwargs["session"]
                 )
 
-        keyspace_folder = f"/var/lib/scylla/data/{keyspace_name}"
-        command = f"ls -t {keyspace_folder}/" if not table_name else f"ls -d {keyspace_folder}/{table_name}-*"
-        result = node.remoter.sudo(command)
-        if not result:
-            LOGGER.debug("Empty result for command: '%s'", command)
-            raise NotADirectoryError(f"Not found table folder under '{keyspace_folder}' on the {node.name} node")
-
-        upload_dir = result.stdout.split()[0]
-        table_folder = f"/var/lib/scylla/data/{keyspace_name}/{upload_dir}" if not table_name else upload_dir
+        table_id = node.run_cqlsh(
+            f"SELECT id FROM system_schema.tables WHERE table_name='{table_name}' and keyspace_name='{keyspace_name}'",
+            split=True,
+        )
+        table_id = table_id[3]
+        table_id = table_id.replace("-", "")
+        table_folder = f"/var/lib/scylla/data/{keyspace_name}/{table_name}-{table_id}"
 
         # Extract tarball again (in case create_schema=True) directly to Scylla table upload folder to simplify the code
         node.remoter.sudo(f"tar xvfz {test_data.sstable_file} -C {table_folder}/upload/", user="scylla")
-
-        # Scylla Enterprise 2019.1 doesn't support to load schema.cql and manifest.json, let's remove them
-        node.remoter.sudo(f"rm -f {table_folder}/upload/schema.cql")
-        node.remoter.sudo(f"rm -f {table_folder}/upload/manifest.json")
 
     @classmethod
     def run_load_and_stream(

@@ -3464,11 +3464,12 @@ class FillDatabaseData(ClusterTester):
             for k in range(100):
                 session.execute(insert_query())
 
-    @staticmethod
-    def cql_truncate_simple_tables(session, rows):
+    def cql_truncate_simple_tables(self, session, rows):
         truncate_query = "TRUNCATE TABLE truncate_table%d USING TIMEOUT 300s"
         for i in range(rows):
+            self.log.debug(f"TRUNCATE is starting now!!! row: {i}")
             session.execute(truncate_query % i)
+            self.log.debug(f"TRUNCATE ended now!!! row: {i}")
 
     def fill_db_data_for_truncate_test(self, insert_rows):
         # Prepare connection and keyspace
@@ -3776,11 +3777,15 @@ class FillDatabaseData(ClusterTester):
             session.default_consistency_level = ConsistencyLevel.QUORUM
             session.execute("""
                 CREATE KEYSPACE IF NOT EXISTS scylla_bench
-                WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor': '3'} AND durable_writes = true;
+                WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor': '3'}
+                AND durable_writes = true
+                AND storage = {'type': 'S3', 'endpoint': 's3.us-east-1.amazonaws.com', 'bucket': 'manager-backup-tests-us-east-1'};
                 """)
             session.execute(f"""
-                CREATE KEYSPACE IF NOT EXISTS {self.base_ks}
-                WITH replication = {{'class': 'NetworkTopologyStrategy', 'replication_factor': '3'}} AND durable_writes = true;
+                CREATE KEYSPACE {self.base_ks}
+                WITH replication = {{'class': 'NetworkTopologyStrategy', 'replication_factor': '3'}}
+                AND durable_writes = true
+                AND storage = {{'type': 'S3', 'endpoint': 's3.us-east-1.amazonaws.com', 'bucket': 'manager-backup-tests-us-east-1'}};
                 """)
             session.set_keyspace(self.base_ks)
 

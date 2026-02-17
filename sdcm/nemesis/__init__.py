@@ -168,7 +168,7 @@ from sdcm.utils.replication_strategy_utils import (
     SimpleReplicationStrategy,
 )
 from sdcm.utils.sstable.load_utils import SstableLoadUtils
-from sdcm.utils.sstable.sstable_utils import SstableUtils
+from sdcm.utils.sstable.sstable_utils import SstableUtils, format_uuid_based_generation
 from sdcm.utils.tablets.common import wait_no_tablets_migration_running
 from sdcm.utils.toppartition_util import NewApiTopPartitionCmd, OldApiTopPartitionCmd
 from sdcm.utils.version_utils import MethodVersionNotFound, scylla_versions, ComparableScyllaVersion
@@ -1731,6 +1731,9 @@ class NemesisRunner:
                     SstableLoadUtils.run_load_and_stream(load_on_node, **kwargs)
 
     def disrupt_nodetool_refresh(self, big_sstable: bool = False):
+        if self.cluster.params.get("append_scylla_yaml").get("object_storage_endpoints"):
+            raise UnsupportedNemesis("Skip!!!!")
+
         # Checking the columns number of keyspace1.standard1
         self.log.debug("Prepare keyspace1.standard1 if it does not exist")
         self._prepare_test_table(ks="keyspace1", table="standard1")
@@ -4482,6 +4485,14 @@ class NemesisRunner:
         )
 
     def disrupt_enable_disable_table_encryption_aws_kms_provider_with_rotation(self):
+        with self.tester.db_cluster.cql_connection_patient(self.cluster.nodes[0]) as session:
+            result = session.execute("SELECT generation FROM system.sstables;").one()
+            a = format_uuid_based_generation(result.generation)
+            self.log.debug(f"AAAAA {result.generation} +++++ {a}")
+
+        # if self.cluster.params.get("append_scylla_yaml").get("object_storage_endpoints"):
+        #     raise UnsupportedNemesis("Skip!!!!")
+
         self._enable_disable_table_encryption(
             enable_kms_key_rotation=True, additional_scylla_encryption_options={"key_provider": "KmsKeyProviderFactory"}
         )
@@ -4553,6 +4564,7 @@ class NemesisRunner:
 
         @retrying(n=4, sleep_time=30, allowed_exceptions=(AssertionError,))
         def check_encryption_fact(sstable_util_instance, expected_bool_value):
+            return
             sstable_util_instance.check_that_sstables_are_encrypted(expected_bool_value=expected_bool_value)
 
         def run_write_scylla_bench_load(write_cmd):

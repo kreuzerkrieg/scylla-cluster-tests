@@ -2,9 +2,11 @@ import datetime
 import json
 import logging
 import random
+import uuid
 from pathlib import Path
 
 from sdcm.paths import SCYLLA_YAML_PATH
+from sdcm.utils.sstable.load_utils import SstableLoadUtils
 from sdcm.utils.version_utils import ComparableScyllaVersion
 from sdcm.exceptions import SstablesNotFound
 
@@ -71,6 +73,16 @@ class SstableUtils:
 
         if not sstables:
             raise SstablesNotFound(f"sstables for '{self.keyspace}.{self.table}' wasn't found")
+
+        if not sstables:
+            with self.db_cluster.cql_connection_patient(self.db_node) as session:
+                result = session.execute("SELECT generation FROM system.sstables;").one()
+                a = format_uuid_based_generation(result.generation)
+                self.log.debug(f"AAAAA {result.generation} +++++ {a}")
+                from sdcm.utils.common import s3_download_dir
+                s3_download_dir("manager-backup-tests-us-east-1", a, '/tmp/scylla_data')
+                self.db_node.remoter.sudo(f"ls /tmp/scylla_data/{a}", verbose=True, ignore_status=True)
+                sstables = [f"/tmp/scylla_data/{a}/Data.db"]
 
         dump_cmd = get_sstable_metadata_dump_command(self.db_node, self.keyspace, self.table)
         for sstable in sstables:
@@ -439,3 +451,57 @@ def get_sstable_data_dump_command(node, keyspace: str, table: str) -> str:
     if not is_new_sstable_dump_supported(node):
         return "sstabledump"
     return _generate_sstable_dump_command(node, "dump-data", keyspace, table)
+
+
+def _to_base36(value: int) -> str:
+    """Convert a non-negative integer to lowercase base36 without leading zeros."""
+    if value < 0:
+        raise ValueError("value must be non-negative")
+    digits = "0123456789abcdefghijklmnopqrstuvwxyz"
+    if value == 0:
+        return "0"
+    out = []
+    while value:
+        value, rem = divmod(value, 36)
+        out.append(digits[rem])
+    return "".join(reversed(out))
+
+
+def format_uuid_based_generation(generation_uuid: str | uuid.UUID) -> str:
+    """Format UUID-based SSTable generation the same way as Scylla's generation_type formatter.
+
+    This returns a string formatted as:
+        dddd_ssss_dddddlllllllllllll
+
+    Where each component is base36, zero-padded to widths (4, 4, 5, 13) respectively.
+
+    Notes:
+    - This expects a UUIDv1 (time-based) value because it relies on the UUID timestamp.
+    - Only formatting is implemented here (no S3 access / listing).
+    """
+    u = generation_uuid if isinstance(generation_uuid, uuid.UUID) else uuid.UUID(str(generation_uuid))
+
+    # Python's uuid.UUID.time is 60-bit timestamp in 100-ns intervals since 1582-10-15.
+    # Scylla uses ::utils::UUID_gen::decimicroseconds(uuid.timestamp()) which is timestamp in 0.1us units.
+    # Convert 100ns ticks -> 0.1us units by dividing by 1.
+    decimicro_total = u.time
+
+    decimicro_per_second = 10_000_000  # 1s / 0.1us
+    decimicro_per_day = 24 * 60 * 60 * decimicro_per_second
+
+    days = decimicro_total // decimicro_per_day
+    rem = decimicro_total - days * decimicro_per_day
+
+    secs = rem // decimicro_per_second
+    decimicro = rem - secs * decimicro_per_second
+
+    # Least significant 64 bits of UUID
+    lsb = u.int & ((1 << 64) - 1)
+
+    return (
+        f"{_to_base36(days):0>4}_"
+        f"{_to_base36(secs):0>4}_"
+        f"{_to_base36(decimicro):0>5}"
+        f"{_to_base36(lsb):0>13}"
+    )
+
