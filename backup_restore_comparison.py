@@ -4,8 +4,7 @@ import re
 import threading
 import uuid
 from enum import Enum
-
-import boto3
+from time import sleep
 
 from argus.client.generic_result import Status
 from mgmt_cli_test import ManagerTestFunctionsMixIn
@@ -14,6 +13,8 @@ from sdcm.argus_results import ManagerBackupReadResult, ManagerBackupBenchmarkRe
 from sdcm.cluster import BaseNode
 from sdcm.mgmt import TaskStatus
 from sdcm.remote import shell_script_cmd
+from sdcm.rest.remote_curl_client import RemoteCurlClient
+from sdcm.rest.storage_service_client import StorageServiceClient
 from sdcm.sct_events.system import InfoEvent
 from sdcm.utils.node import build_node_api_command, RequestMethods
 from sdcm.utils.time_utils import ExecutionTimer
@@ -403,29 +404,6 @@ echo [✓] Journald reconfigured and restarted
 
         self.report_to_argus(ManagerReportType.BACKUP, restore_report, "nodetool restore")
 
-        # self.log.info("Write data to table")
-        # self.run_prepare_write_cmd()
-        #
-        # def backup(scylla_node: BaseNode):
-        #     scylla_node.run_nodetool("flush")
-        #
-        #     result = scylla_node.run_nodetool('snapshot')
-        #     snapshot_name = re.findall(r'(\d+)', result.stdout.split("snapshot name")[1])[0]
-        #
-        #     backup_res = scylla_node.run_nodetool(
-        #         f"backup --endpoint s3.us-east-1.amazonaws.com --bucket manager-backup-tests-permanent-snapshots-us-east-1 --prefix ernest-sct-tests/6TB-tablets-RF3-6node/{scylla_node.uuid} --keyspace keyspace1 --table standard1 --snapshot {snapshot_name}")
-        #     if backup_res is not None and backup_res.exit_status != 0:
-        #         raise Exception(f"Backup failed: {backup_res.stdout}")
-        #
-        # self.log.info("Create and report backup time")
-        # backup_threads = []
-        # for node in self.db_cluster.nodes:
-        #     thread = threading.Thread(target=backup, args=(node,))
-        #     backup_threads.append(thread)
-        #     thread.start()
-        # for thread in backup_threads:
-        #     thread.join()
-
     def test_just_backup_restore(self):
 
         self.log.info("Write data to table")
@@ -499,3 +477,102 @@ echo [✓] Journald reconfigured and restarted
         self.restore_and_report("Native restore")
 
         self.db_cluster.nodes[0].run_cqlsh("ALTER TABLE keyspace1.standard1 WITH tombstone_gc = {'mode': 'repair'};")
+
+    def test_tablet_aware_restore(self):
+        self.log.info("Executing test_tablet_aware_restore...")
+
+        for node in self.db_cluster.nodes:
+            node.remoter.sudo(shell_script_cmd("""\
+                    echo '\nobject_storage_endpoints:\n  - name: s3.us-east-1.amazonaws.com\n    port: 443\n    https: true\n    aws_region: us-east-1\n    iam_role_arn: arn:aws:iam::797456418907:instance-profile/qa-scylla-manager-backup-instance-profile\n' >> /etc/scylla/scylla.yaml
+                        """))
+            node.restart_scylla_server()
+
+        self.db_cluster.nodes[0].run_cqlsh(
+            '''CREATE KEYSPACE keyspace1 WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor': 3} AND tablets = {'enabled': true};''')
+        self.db_cluster.nodes[0].run_cqlsh('''CREATE TABLE keyspace1.standard1
+                                              (
+                                                  key  blob,
+                                                  "C0" blob,
+                                                  PRIMARY KEY (key)
+                                              ) WITH bloom_filter_fp_chance = 0.01
+                                                    AND caching = {'keys': 'ALL', 'rows_per_partition': 'ALL'}
+                                                    AND comment = ''
+                                                    AND compaction = {'class': 'IncrementalCompactionStrategy'}
+                                                    AND compression = {}
+                                                    AND crc_check_chance = 1
+                                                    AND default_time_to_live = 0
+                                                    AND gc_grace_seconds = 864000
+                                                    AND max_index_interval = 2048
+                                                    AND memtable_flush_period_in_ms = 0
+                                                    AND min_index_interval = 128
+                                                    AND speculative_retry = '99.0PERCENTILE'
+                                                    AND tablets = {'min_tablet_count': 1024, 'max_tablet_count': 1024}
+                                                    AND tombstone_gc = {'mode': 'disabled'};
+                                           ''')
+
+        node_names = ["d19d62b8-1c89-11f1-b388-025bfb20f2b9", "d1a065bc-1c89-11f1-92b7-02c21ce218c3",
+                      "d1ba103e-1c89-11f1-9eab-027eb0300c8b", "d211556a-1c89-11f1-b1f0-02d6605209f7",
+                      "d2868786-1c89-11f1-a55c-02a2fd76cc55", "d3518738-1c89-11f1-8d72-02b6db3c724f"]
+        manifests = [
+            f"ernest-sct-tests/6TB-tablets-RF3-6node/{node}/manifest.json"
+            for node in node_names
+        ]
+        self.set_balancing(False)
+        storage_client = StorageServiceClient(node=self.db_cluster.nodes[0])
+        tm_client = RemoteCurlClient(host="localhost:10000", endpoint="task_manager", node=self.db_cluster.nodes[0])
+        with ExecutionTimer() as lns_timer:
+            tid = storage_client.tablet_aware_restore(ks="keyspace1", cf="standard1", snap="tablet_aware_restore_001",
+                                                      endpoint="s3.us-east-1.amazonaws.com",
+                                                      bucket="manager-backup-tests-permanent-snapshots-us-east-1",
+                                                      manifests=manifests).stdout.strip().strip('"')
+            self.log.warn(f"tablet_aware_restore tid: {tid}")
+            sleep(30*60)
+            # res = self.db_cluster.nodes[0].run_cqlsh("SELECT * FROM system.tablets")
+            # self.log.warn(f"tablet_aware_restore - SELECT * FROM system.tablets: {res.stdout}")
+            # res = tm_client.run_remoter_curl(method="GET", path=f'wait_task/{tid}', params=None, timeout=2 * 60 * 60)
+            # self.log.warn(f"tablet_aware_restore res of task wait: {res}")
+
+        restore_report = {
+            # "Size": format_size(sum(self.node_backup_size.values()) / len(self.node_backup_size.values())),
+            "Size": format_size(3000000000),
+            "Time": int(lns_timer.duration.total_seconds()),
+        }
+
+        self.report_to_argus(ManagerReportType.BACKUP, restore_report, "tablet aware restore")
+        cql_res = self.db_cluster.nodes[0].run_cqlsh("select count(*) from keyspace1.standard1 BYPASS CACHE")
+        self.log.warn(f"tablet_aware_restore - cql select result: {cql_res.stdout}")
+        self.log.warn(f"tablet_aware_restore - table rows: {cql_res.current_rows[0].count}")
+
+    def test_create_permanent_backup(self):
+        for node in self.db_cluster.nodes:
+            node.remoter.sudo(shell_script_cmd("""\
+                        echo '\nobject_storage_endpoints:\n  - name: s3.us-east-1.amazonaws.com\n    port: 443\n    https: true\n    aws_region: us-east-1\n    iam_role_arn: arn:aws:iam::797456418907:instance-profile/qa-scylla-manager-backup-instance-profile\n' >> /etc/scylla/scylla.yaml
+                            """))
+            node.restart_scylla_server()
+
+        self.log.info("Write data to table")
+        self.run_prepare_write_cmd()
+
+        def backup(scylla_node: BaseNode):
+            scylla_node.run_nodetool("flush")
+
+            snapshot_name = "tablet_aware_restore_001"
+            storage_client = StorageServiceClient(node=scylla_node)
+            storage_client.snapshot(ks="keyspace1", cf="standard1", snap=snapshot_name).stdout.strip()
+
+            self.log.warn(f"tablet_aware_restore - snapshot taken, now starting backup for {scylla_node.host_id}")
+            backup_res = scylla_node.run_nodetool(
+                f"backup --endpoint s3.us-east-1.amazonaws.com --bucket manager-backup-tests-permanent-snapshots-us-east-1 --prefix ernest-sct-tests/6TB-tablets-RF3-6node/{scylla_node.uuid} --keyspace keyspace1 --table standard1 --snapshot {snapshot_name}")
+            self.log.warn(f"tablet_aware_restore - backup ended for {scylla_node.host_id}\n{backup_res.stdout}")
+
+            if backup_res is not None and backup_res.exit_status != 0:
+                raise Exception(f"Backup failed: {backup_res.stdout}")
+
+        self.log.info("Create and report backup time")
+        backup_threads = []
+        for node in self.db_cluster.nodes:
+            thread = threading.Thread(target=backup, args=(node,))
+            backup_threads.append(thread)
+            thread.start()
+        for thread in backup_threads:
+            thread.join()

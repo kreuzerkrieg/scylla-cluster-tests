@@ -34,6 +34,30 @@ class StorageServiceClient(RemoteCurlClient):
 
         return self.run_remoter_curl(method="POST", path=path, params=params, timeout=timeout)
 
+    def tablet_aware_restore(self, ks: str, cf: str, snap: str, endpoint: str, bucket: str, manifests,
+                             timeout: int = 600) -> Result:
+        params = {
+            "keyspace": ks,
+            "table": cf,
+            "snapshot": snap,
+            "endpoint": endpoint,
+            "bucket": bucket,
+            "manifest": manifests
+        }
+        path = "tablets/restore"
+
+        return self.run_remoter_curl(method="POST", path=path, params=params, timeout=timeout)
+
+    def snapshot(self, ks: str, cf: str, snap: str, timeout: int = 600) -> Result:
+        params = {
+            "kn": ks,
+            "cf": cf,
+            "tag": snap
+        }
+        path = "snapshots"
+
+        return self.run_remoter_curl(method="POST", path=path, params=params, timeout=timeout)
+
     def scrub_ks_cf(self, keyspace: str, cf: Optional[str] = None, scrub_mode: Optional[str] = None) -> Result:
         params = {"cf": cf} if cf else {}
 
