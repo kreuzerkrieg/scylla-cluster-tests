@@ -481,7 +481,23 @@ echo [✓] Journald reconfigured and restarted
     def test_tablet_aware_restore(self):
         self.log.info("Executing test_tablet_aware_restore...")
 
+        script = """\
+        set -eux
+        
+        echo [+] Writing journald configuration
+        mkdir -p '$(dirname /etc/systemd/journald.conf.d/override.conf)'
+        echo '[Journal]
+        Storage=persistent
+        RateLimitInterval=0
+        RateLimitBurst=0' | tee /etc/systemd/journald.conf.d/override.conf
+        
+        echo [✓] Journald config written.
+        systemctl restart systemd-journald
+        echo [✓] Journald reconfigured and restarted
+        """
         for node in self.db_cluster.nodes:
+            res = node.remoter.sudo(shell_script_cmd(script))
+            print (res.stdout)
             node.remoter.sudo(shell_script_cmd("""\
                     echo '\nobject_storage_endpoints:\n  - name: s3.us-east-1.amazonaws.com\n    port: 443\n    https: true\n    aws_region: us-east-1\n    iam_role_arn: arn:aws:iam::797456418907:instance-profile/qa-scylla-manager-backup-instance-profile\n' >> /etc/scylla/scylla.yaml
                         """))
@@ -520,6 +536,7 @@ echo [✓] Journald reconfigured and restarted
         self.set_balancing(False)
         storage_client = StorageServiceClient(node=self.db_cluster.nodes[0])
         tm_client = RemoteCurlClient(host="localhost:10000", endpoint="task_manager", node=self.db_cluster.nodes[0])
+
         with ExecutionTimer() as lns_timer:
             tid = storage_client.tablet_aware_restore(ks="keyspace1", cf="standard1", snap="tablet_aware_restore_001",
                                                       endpoint="s3.us-east-1.amazonaws.com",
@@ -527,6 +544,11 @@ echo [✓] Journald reconfigured and restarted
                                                       manifests=manifests).stdout.strip().strip('"')
             self.log.warn(f"tablet_aware_restore tid: {tid}")
             sleep(30*60)
+            for node in self.db_cluster.nodes:
+                system_client = RemoteCurlClient(host="localhost:10000", endpoint="system", node=node)
+                system_client.run_remoter_curl(method="POST", path='logger/s3?level=trace', params=None, timeout=120, retry=3)
+                system_client.run_remoter_curl(method="POST", path='logger/http?level=debug', params=None, timeout=120, retry=3)
+            sleep(3*60)
             # res = self.db_cluster.nodes[0].run_cqlsh("SELECT * FROM system.tablets")
             # self.log.warn(f"tablet_aware_restore - SELECT * FROM system.tablets: {res.stdout}")
             # res = tm_client.run_remoter_curl(method="GET", path=f'wait_task/{tid}', params=None, timeout=2 * 60 * 60)
@@ -539,9 +561,8 @@ echo [✓] Journald reconfigured and restarted
         }
 
         self.report_to_argus(ManagerReportType.BACKUP, restore_report, "tablet aware restore")
-        cql_res = self.db_cluster.nodes[0].run_cqlsh("select count(*) from keyspace1.standard1 BYPASS CACHE")
+        cql_res = self.db_cluster.nodes[0].run_cqlsh("select count(*) from keyspace1.standard1 BYPASS CACHE USING TIMEOUT 600s")
         self.log.warn(f"tablet_aware_restore - cql select result: {cql_res.stdout}")
-        self.log.warn(f"tablet_aware_restore - table rows: {cql_res.current_rows[0].count}")
 
     def test_create_permanent_backup(self):
         for node in self.db_cluster.nodes:

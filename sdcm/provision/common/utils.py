@@ -115,7 +115,7 @@ transforms:
 sinks:
     sct-runner:
         type: vector
-        inputs: [filter_suppress_warnings]
+        inputs: [filter_system_services]
         address: {host}:{port}
         healthcheck: false
     prometheus:
