@@ -545,18 +545,18 @@ echo [✓] Journald reconfigured and restarted
                                                       bucket="manager-backup-tests-permanent-snapshots-us-east-1",
                                                       manifests=manifests).stdout.strip().strip('"')
             self.log.warn(f"tablet_aware_restore tid: {tid}")
-            sleep(30 * 60)
-            for node in self.db_cluster.nodes:
-                system_client = RemoteCurlClient(host="localhost:10000", endpoint="system", node=node)
-                system_client.run_remoter_curl(method="POST", path='logger/s3?level=trace', params=None, timeout=120,
-                                               retry=3)
-                system_client.run_remoter_curl(method="POST", path='logger/http?level=debug', params=None, timeout=120,
-                                               retry=3)
-            sleep(5 * 60)
+            # sleep(30 * 60)
+            # for node in self.db_cluster.nodes:
+            #     system_client = RemoteCurlClient(host="localhost:10000", endpoint="system", node=node)
+            #     system_client.run_remoter_curl(method="POST", path='logger/s3?level=trace', params=None, timeout=120,
+            #                                    retry=3)
+            #     system_client.run_remoter_curl(method="POST", path='logger/http?level=debug', params=None, timeout=120,
+            #                                    retry=3)
+            # sleep(5 * 60)
             # res = self.db_cluster.nodes[0].run_cqlsh("SELECT * FROM system.tablets")
             # self.log.warn(f"tablet_aware_restore - SELECT * FROM system.tablets: {res.stdout}")
-            # res = tm_client.run_remoter_curl(method="GET", path=f'wait_task/{tid}', params=None, timeout=2 * 60 * 60)
-            # self.log.warn(f"tablet_aware_restore res of task wait: {res}")
+            res = tm_client.run_remoter_curl(method="GET", path=f'wait_task/{tid}', params=None, timeout=2 * 60 * 60)
+            self.log.warn(f"tablet_aware_restore res of task wait: {res}")
 
         restore_report = {
             # "Size": format_size(sum(self.node_backup_size.values()) / len(self.node_backup_size.values())),
