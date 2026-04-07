@@ -1622,6 +1622,10 @@ class SCTConfiguration(BaseModel):
     stress_cmd_m: MultitenantValue(StringOrList) = SctField(
         description="cassandra-stress commands. You can specify everything but the -node parameter, which is going to be provided by the test suite infrastructure. Multiple commands can be passed as a list",
     )
+    stress_cmd_scan: MultitenantValue(StringOrList) = SctField(
+        description="scylla-bench scan command. Used for single-partition scan benchmarks. "
+        "The -nodes parameter is provided by the test suite infrastructure.",
+    )
     stress_cmd_read_disk: MultitenantValue(StringOrList) = SctField(
         description="""cassandra-stress commands.
                 You can specify everything but the -node parameter, which is going to
@@ -2357,6 +2361,7 @@ class SCTConfiguration(BaseModel):
         "stress_cmd_w",
         "stress_cmd_r",
         "stress_cmd_m",
+        "stress_cmd_scan",
         "prepare_write_cmd",
         "stress_cmd_no_mv",
         "stress_cmd_no_mv_profile",
@@ -4112,7 +4117,8 @@ class SCTConfiguration(BaseModel):
                         continue
                     if "-mode=" not in cmd:
                         raise ValueError(f"Scylla-bench command {cmd} doesn't have parameter -mode")
-                    if "-workload=" not in cmd:
+                    # scan mode does not accept -workload (scylla-bench rejects it)
+                    if "-mode=scan" not in cmd and "-workload=" not in cmd:
                         raise ValueError(f"Scylla-bench command {cmd} doesn't have parameter -workload")
 
     def _validate_docker_backend_parameters(self):

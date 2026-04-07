@@ -1,0 +1,46 @@
+test_duration: 120
+
+# --- Write: populate 1 partition × 100K clustering rows (256-byte payload) ---
+stress_cmd_w: >-
+  scylla-bench -workload=sequential -mode=write
+  -partition-count=1 -clustering-row-count=1000000 -clustering-row-size=256
+  -replication-factor=3 -concurrency=64 -connection-count=16
+
+# --- Read: point reads within the single partition ---
+stress_cmd_r: >-
+  scylla-bench -workload=uniform -mode=read
+  -partition-count=1 -clustering-row-count=100000 -clustering-row-size=256
+  -replication-factor=3 -concurrency=64 -connection-count=16 -duration=10m
+
+# --- Scan: range scans within the single partition (1000 rows per request) ---
+stress_cmd_scan: >-
+  scylla-bench -mode=scan
+  -partition-count=1 -clustering-row-count=100000 -clustering-row-size=256
+  -rows-per-request=1000
+  -replication-factor=3 -concurrency=1 -connection-count=4 -duration=10m
+
+n_db_nodes: 3
+n_loaders: 1
+
+instance_type_db: 'i4i.8xlarge'
+instance_type_loader: 'c7i.2xlarge'
+instance_type_monitor: 't3.small'
+
+user_prefix: 'perf-single-partition-bench'
+argus_email_report_template: email_report_performance.yaml
+
+backtrace_decoding: true
+backtrace_stall_decoding: false
+
+use_mgmt: false
+use_hdrhistogram: true
+
+append_scylla_args: '--blocked-reactor-notify-ms 5 --abort-on-lsa-bad-alloc 1 --abort-on-seastar-bad-alloc --abort-on-internal-error 1 --abort-on-ebadf 1'
+append_scylla_yaml:
+  auto_snapshot: false
+
+use_placement_group: true
+use_prepared_loaders: false
+
+adaptive_timeout_store_metrics: false
+

@@ -166,9 +166,11 @@ class ScyllaBenchThread(DockerBasedStressThread):
         # Find stress mode:
         #    "scylla-bench -workload=sequential -mode=write -replication-factor=3 -partition-count=100"
         #    "scylla-bench -workload=uniform -mode=read -replication-factor=3 -partition-count=100"
+        #    "scylla-bench -mode=scan -partition-count=1 ..."  (scan mode has no -workload)
         self.sb_mode: ScyllaBenchModes = ScyllaBenchModes(re.search(r"-mode=(.+?) ", stress_cmd).group(1))
-        self.sb_workload: ScyllaBenchWorkloads = ScyllaBenchWorkloads(
-            re.search(r"-workload=(.+?) ", stress_cmd).group(1)
+        workload_match = re.search(r"-workload=(.+?) ", stress_cmd)
+        self.sb_workload: ScyllaBenchWorkloads | None = (
+            ScyllaBenchWorkloads(workload_match.group(1)) if workload_match else None
         )
         self.hdr_tags = self.set_hdr_tags()
         self.stop_test_on_failure = stop_test_on_failure

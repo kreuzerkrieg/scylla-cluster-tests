@@ -806,6 +806,65 @@ class PerformanceRegressionTest(ClusterTester, loader_utils.LoaderUtilsMixin):
     def test_mv_mixed_not_populated(self):
         self._mixed_with_mv(on_populated=False)
 
+    # Single-Partition Benchmark Tests
+    def test_single_partition_bench(self):
+        """
+        Single-partition performance benchmark using scylla-bench.
+
+        Measures throughput (op/s, row/s) and latency (median, mean, p95,
+        p99, p99.9, max) for write, read, and scan operations against a
+        single partition containing many clustering rows.
+
+        Test steps:
+
+        1. Populate a single wide partition with clustering rows (write benchmark).
+        2. Wait for compactions to settle, fstrim.
+        3. Run read workload against the populated partition.
+        4. Run scan workload (range reads) against the populated partition.
+
+        Stress commands are read from YAML params:
+          - stress_cmd_w:    scylla-bench write command  (e.g. -partition-count=1 -mode=write)
+          - stress_cmd_r:    scylla-bench read command   (e.g. -partition-count=1 -mode=read)
+          - stress_cmd_scan: scylla-bench scan command   (e.g. -partition-count=1 -mode=scan)
+        """
+        base_cmd_w = self.params.get("stress_cmd_w")
+        base_cmd_r = self.params.get("stress_cmd_r")
+        base_cmd_scan = self.params.get("stress_cmd_scan")
+
+        # YAML StringOrList fields may parse as single-element lists; unwrap them.
+        if isinstance(base_cmd_w, list) and len(base_cmd_w) == 1:
+            base_cmd_w = base_cmd_w[0]
+        if isinstance(base_cmd_r, list) and len(base_cmd_r) == 1:
+            base_cmd_r = base_cmd_r[0]
+        if isinstance(base_cmd_scan, list) and len(base_cmd_scan) == 1:
+            base_cmd_scan = base_cmd_scan[0]
+
+        self.run_fstrim_on_all_db_nodes()
+
+        # --- Write phase: populate the partition and measure write throughput/latency ---
+        self.log.info("Single-partition benchmark: WRITE phase")
+        stress_queue = self.run_stress_thread(stress_cmd=base_cmd_w, stress_num=1, stats_aggregate_cmds=False)
+        write_results = self.get_stress_results(queue=stress_queue, store_results=True)
+        self.display_results(write_results, test_name="test_single_partition_bench_write")
+
+        # --- Let compactions settle before read/scan ---
+        self.wait_no_compactions_running(n=240, sleep_time=120)
+        self.run_fstrim_on_all_db_nodes()
+
+        # --- Read phase: point reads within the single partition ---
+        if base_cmd_r:
+            self.log.info("Single-partition benchmark: READ phase")
+            stress_queue = self.run_stress_thread(stress_cmd=base_cmd_r, stress_num=1, stats_aggregate_cmds=False)
+            read_results = self.get_stress_results(queue=stress_queue, store_results=True)
+            self.display_results(read_results, test_name="test_single_partition_bench_read")
+
+        # --- Scan phase: range scans within the single partition ---
+        if base_cmd_scan:
+            self.log.info("Single-partition benchmark: SCAN phase")
+            stress_queue = self.run_stress_thread(stress_cmd=base_cmd_scan, stress_num=1, stats_aggregate_cmds=False)
+            scan_results = self.get_stress_results(queue=stress_queue, store_results=True)
+            self.display_results(scan_results, test_name="test_single_partition_bench_scan")
+
     # Counter Tests
     def test_uniform_counter_update_bench(self):
         """
