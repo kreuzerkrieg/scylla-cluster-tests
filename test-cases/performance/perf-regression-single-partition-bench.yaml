@@ -1,29 +1,33 @@
-test_duration: 120
+test_duration: 240
 
-# --- Write: populate 1 partition × 100K clustering rows (256-byte payload) ---
+# Single-partition benchmark: 1 partition × 10M clustering rows × 1KB payload ≈ 10 GB per partition.
+# With RF=3, total cluster write volume ≈ 30 GB. Large enough for meaningful compactions,
+# too big to fit in a single shard's share of row cache, realistic for a "wide partition" scenario.
+
+# --- Write: populate 1 partition × 10M clustering rows (1KB payload) ---
 stress_cmd_w: >-
   scylla-bench -workload=sequential -mode=write
-  -partition-count=1 -clustering-row-count=1000000 -clustering-row-size=256
-  -replication-factor=3 -concurrency=64 -connection-count=16
+  -partition-count=1 -clustering-row-count=10000000 -clustering-row-size=1024
+  -replication-factor=3 -concurrency=128 -connection-count=32
 
 # --- Read: point reads within the single partition ---
 stress_cmd_r: >-
   scylla-bench -workload=uniform -mode=read
-  -partition-count=1 -clustering-row-count=100000 -clustering-row-size=256
-  -replication-factor=3 -concurrency=64 -connection-count=16 -duration=10m
+  -partition-count=1 -clustering-row-count=10000000 -clustering-row-size=1024
+  -replication-factor=3 -concurrency=128 -connection-count=32 -duration=30m
 
-# --- Scan: range scans within the single partition (1000 rows per request) ---
+# --- Scan: range scans within the single partition (10K rows per request ≈ 10 MB per scan) ---
 stress_cmd_scan: >-
   scylla-bench -mode=scan
-  -partition-count=1 -clustering-row-count=100000 -clustering-row-size=256
-  -rows-per-request=1000
-  -replication-factor=3 -concurrency=1 -connection-count=4 -duration=10m
+  -partition-count=1 -clustering-row-count=10000000 -clustering-row-size=1024
+  -rows-per-request=10000
+  -replication-factor=3 -concurrency=32 -connection-count=16 -duration=30m
 
 n_db_nodes: 3
 n_loaders: 3
 
 instance_type_db: 'i4i.8xlarge'
-instance_type_loader: 'c7i.2xlarge'
+instance_type_loader: 'c7i.4xlarge'
 instance_type_monitor: 't3.small'
 
 user_prefix: 'perf-single-partition-bench'
