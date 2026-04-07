@@ -1,33 +1,36 @@
-test_duration: 240
+test_duration: 360
 
-# Single-partition benchmark: 1 partition × 10M clustering rows × 1KB payload ≈ 10 GB per partition.
-# With RF=3, total cluster write volume ≈ 30 GB. Large enough for meaningful compactions,
-# too big to fit in a single shard's share of row cache, realistic for a "wide partition" scenario.
+# Single-partition benchmark: 1 partition × 50M clustering rows × 2KB payload ≈ 100 GB per partition.
+# With RF=3, total cluster write volume ≈ 300 GB.  This is large enough to dominate over row-cache,
+# force multiple SSTables and meaningful compactions, and produce visible disk I/O.
+#
+# NOTE: a single-partition workload targets one shard per node, so cluster-wide CPU utilisation
+# will be modest (~1/16 of each i4i.8xlarge).  The goal is to saturate that single shard.
 
-# --- Write: populate 1 partition × 10M clustering rows (1KB payload) ---
+# --- Write: populate 1 partition × 50M clustering rows (2KB payload) ---
 stress_cmd_w: >-
   scylla-bench -workload=sequential -mode=write
-  -partition-count=1 -clustering-row-count=10000000 -clustering-row-size=1024
-  -replication-factor=3 -concurrency=128 -connection-count=32
+  -partition-count=1 -clustering-row-count=50000000 -clustering-row-size=2048
+  -replication-factor=3 -concurrency=512 -connection-count=64
 
 # --- Read: point reads within the single partition ---
 stress_cmd_r: >-
   scylla-bench -workload=uniform -mode=read
-  -partition-count=1 -clustering-row-count=10000000 -clustering-row-size=1024
-  -replication-factor=3 -concurrency=128 -connection-count=32 -duration=30m
+  -partition-count=1 -clustering-row-count=50000000 -clustering-row-size=2048
+  -replication-factor=3 -concurrency=512 -connection-count=64 -duration=60m
 
-# --- Scan: range scans within the single partition (10K rows per request ≈ 10 MB per scan) ---
+# --- Scan: range scans within the single partition (50K rows per request ≈ 100 MB per scan) ---
 stress_cmd_scan: >-
   scylla-bench -mode=scan
-  -partition-count=1 -clustering-row-count=10000000 -clustering-row-size=1024
-  -rows-per-request=10000
-  -replication-factor=3 -concurrency=32 -connection-count=16 -duration=30m
+  -partition-count=1 -clustering-row-count=50000000 -clustering-row-size=2048
+  -rows-per-request=50000
+  -replication-factor=3 -concurrency=128 -connection-count=64 -duration=60m
 
 n_db_nodes: 3
 n_loaders: 3
 
 instance_type_db: 'i4i.8xlarge'
-instance_type_loader: 'c7i.4xlarge'
+instance_type_loader: 'c7i.8xlarge'
 instance_type_monitor: 't3.small'
 
 user_prefix: 'perf-single-partition-bench'
