@@ -14,6 +14,7 @@
 # Copyright (c) 2016 ScyllaDB
 
 
+import json
 import os
 import time
 from typing import Optional
@@ -171,8 +172,7 @@ class PerformanceRegressionTest(ClusterTester, loader_utils.LoaderUtilsMixin):
                 test_xml += self.get_test_xml(single_result, test_name=test_name)
 
             with open(os.path.join(self.logdir, "jenkins_perf_PerfPublisher.xml"), "w", encoding="utf-8") as pref_file:
-                content = """<report name="%s report" categ="none"><FOOOOO>BOOOOOO</FOOOOO>%s</report>""" % (test_name, test_xml)
-                self.log.info(content)
+                content = """<report name="%s report" categ="none">%s</report>""" % (test_name, test_xml)
                 pref_file.write(content)
         except Exception as ex:  # noqa: BLE001
             self.log.debug("Failed to display results: {0}".format(results))
@@ -846,6 +846,10 @@ class PerformanceRegressionTest(ClusterTester, loader_utils.LoaderUtilsMixin):
         self.log.info("Single-partition benchmark: WRITE phase")
         stress_queue = self.run_stress_thread(stress_cmd=base_cmd_w, stress_num=1, stats_aggregate_cmds=False)
         write_results = self.get_stress_results(queue=stress_queue, store_results=True)
+        try:
+            self.log.info("Single-partition benchmark WRITE raw results:\n%s", json.dumps(write_results, indent=2, default=str))
+        except Exception:  # noqa: BLE001
+            self.log.info("Single-partition benchmark WRITE raw results: %s", write_results)
         self.display_results(write_results, test_name="test_single_partition_bench_write")
 
         # --- Let compactions settle before read/scan ---
@@ -857,6 +861,10 @@ class PerformanceRegressionTest(ClusterTester, loader_utils.LoaderUtilsMixin):
             self.log.info("Single-partition benchmark: READ phase")
             stress_queue = self.run_stress_thread(stress_cmd=base_cmd_r, stress_num=1, stats_aggregate_cmds=False)
             read_results = self.get_stress_results(queue=stress_queue, store_results=True)
+            try:
+                self.log.info("Single-partition benchmark READ raw results:\n%s", json.dumps(read_results, indent=2, default=str))
+            except Exception:  # noqa: BLE001
+                self.log.info("Single-partition benchmark READ raw results: %s", read_results)
             self.display_results(read_results, test_name="test_single_partition_bench_read")
 
         # --- Scan phase: range scans within the single partition ---
@@ -864,6 +872,10 @@ class PerformanceRegressionTest(ClusterTester, loader_utils.LoaderUtilsMixin):
             self.log.info("Single-partition benchmark: SCAN phase")
             stress_queue = self.run_stress_thread(stress_cmd=base_cmd_scan, stress_num=1, stats_aggregate_cmds=False)
             scan_results = self.get_stress_results(queue=stress_queue, store_results=True)
+            try:
+                self.log.info("Single-partition benchmark SCAN raw results:\n%s", json.dumps(scan_results, indent=2, default=str))
+            except Exception:  # noqa: BLE001
+                self.log.info("Single-partition benchmark SCAN raw results: %s", scan_results)
             self.display_results(scan_results, test_name="test_single_partition_bench_scan")
 
     # Counter Tests

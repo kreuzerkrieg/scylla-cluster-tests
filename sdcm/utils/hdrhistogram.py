@@ -429,9 +429,10 @@ class _HdrRangeHistogramBuilder:
             return "WRITE"
         elif any(r_word in hdr_tag for r_word in ("read", "select", "get", "count", "scan")):
             return "READ"
-        elif self.stress_operation in ("WRITE", "READ"):
+        elif self.stress_operation in ("WRITE", "READ", "SCAN"):
             # branch for the scylla-bench case with its 'co-fixed' and 'raw' tags
-            return self.stress_operation
+            # SCAN is treated as READ for workload type classification
+            return "READ" if self.stress_operation == "SCAN" else self.stress_operation
         # NOTE: following exception raising is not expected in the properly configured test scenarios
         raise ValueError(f"Failed to detect the workload type for the following hdr_tag: {hdr_tag}")
 
