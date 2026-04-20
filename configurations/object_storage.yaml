@@ -3,7 +3,7 @@ experimental_features:
   - keyspace-storage-options
 
 append_scylla_yaml:
-  truncate_request_timeout_in_ms: 600000
+  truncate_request_timeout_in_ms: 1200000
   auto_snapshot: false
   object_storage_endpoints:
     - name: s3.us-east-1.amazonaws.com

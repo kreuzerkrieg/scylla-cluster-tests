@@ -267,15 +267,19 @@ class LoaderUtilsMixin:
                         )
                 # Not using round_robin and all keyspaces will run on all loaders
                 else:
-                    self._run_all_stress_cmds(
-                        write_queue,
-                        params={
-                            "stress_cmd": prepare_write_cmd,
-                            "duration": self.params.get("prepare_stress_duration"),
-                            "keyspace_num": keyspace_num,
-                            "round_robin": self.params.get("round_robin"),
-                        },
-                    )
+                    for cmd in prepare_write_cmd:
+                        single_queue = []
+                        self._run_all_stress_cmds(
+                            single_queue,
+                            params={
+                                "stress_cmd": [cmd],
+                                "duration": self.params.get("prepare_stress_duration"),
+                                "keyspace_num": keyspace_num,
+                                "round_robin": self.params.get("round_robin"),
+                            },
+                        )
+                        for stress in single_queue:
+                            self.verify_stress_thread(stress)
 
             if prepare_cs_user_profiles:
                 self.run_cs_user_profiles(cs_profiles=prepare_cs_user_profiles, stress_queue=write_queue)

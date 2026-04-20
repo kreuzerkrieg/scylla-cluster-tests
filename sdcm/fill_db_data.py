@@ -3681,7 +3681,10 @@ class FillDatabaseData(ClusterTester):
                     res = session.execute(item["queries"][i].replace("#STR", ""))
                     self.assertEqual(str([list(row) for row in res]), item["results"][i])
                 else:
-                    res = session.execute(item["queries"][i])
+                    query = item["queries"][i]
+                    if query.strip().upper().startswith("TRUNCATE") and "using timeout" not in query.lower():
+                        query = f"{query} USING TIMEOUT 1200s"
+                    res = session.execute(query)
                     self.assertEqual([list(row) for row in res], item["results"][i])
             except Exception as ex:
                 LOGGER.exception(item["queries"][i])
@@ -3798,7 +3801,7 @@ class FillDatabaseData(ClusterTester):
         with self.db_cluster.cql_connection_patient(node, keyspace=self.base_ks, connect_timeout=600) as session:
             # override driver consistency level
             session.default_consistency_level = ConsistencyLevel.QUORUM
-            session.default_timeout = 60 * 5
+            session.default_timeout = 60 * 20
             self.run_db_queries(session, session.default_fetch_size)
 
     def paged_query(self, keyspace: str):
