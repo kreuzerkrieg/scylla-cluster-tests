@@ -1,0 +1,70 @@
+// Latte workload for S3 keyspace range query testing.
+//
+// Schema with partition key + clustering key, designed for range scans
+// that exercise S3 read path heavily (multiple data blocks per query).
+//
+// Create schema (keyspace must be pre-created with S3 storage by SCT):
+//   latte schema data_dir/latte/s3_range_query.rn -- <hosts>
+//
+// Populate data:
+//   latte run data_dir/latte/s3_range_query.rn --rate 10000 -d 7200 -f write -- <hosts>
+//
+// Run range reads:
+//   latte run data_dir/latte/s3_range_query.rn --concurrency 80 -d 7200 -f range_read -- <hosts>
+
+use latte::*;
+
+const KEYSPACE = latte::param!("keyspace", "keyspace1");
+const TABLE = latte::param!("table", "range_test");
+const PARTITION_COUNT = latte::param!("partition_count", 200000);
+const CKS_PER_PARTITION = latte::param!("cks_per_partition", 100);
+const ROW_COUNT = latte::param!("row_count", 20000000);
+const VALUE_SIZE = latte::param!("value_size", 512);
+const RANGE_LIMIT = latte::param!("range_limit", 100);
+
+const P_WRITE = "latte_prep_stmt__write";
+const P_RANGE_READ = "latte_prep_stmt__range_read";
+
+pub async fn schema(db) {
+    // NOTE: keyspace is pre-created with S3 storage by SCT via pre_create_keyspace.
+    // We only create the table here to avoid overwriting the S3 storage settings.
+    db.execute(`CREATE TABLE IF NOT EXISTS ${KEYSPACE}.${TABLE} (
+        pk bigint,
+        ck bigint,
+        value blob,
+        PRIMARY KEY (pk, ck)
+    ) WITH compaction = {'class': 'SizeTieredCompactionStrategy'}`).await?;
+}
+
+pub async fn erase(db) {
+    db.execute(`TRUNCATE TABLE ${KEYSPACE}.${TABLE}`).await?;
+}
+
+pub async fn prepare(db) {
+    // NOTE: Print the 'keyspace' name for the SCT stats exporter
+    println!("debug: Keyspace: {keyspace}", keyspace=KEYSPACE);
+
+    db.prepare(
+        P_WRITE,
+        `INSERT INTO ${KEYSPACE}.${TABLE} (pk, ck, value) VALUES (:pk, :ck, :value)`
+    ).await?;
+    db.prepare(
+        P_RANGE_READ,
+        `SELECT pk, ck, value FROM ${KEYSPACE}.${TABLE} WHERE pk = :pk AND ck >= :ck_start AND ck < :ck_end LIMIT ${RANGE_LIMIT}`
+    ).await?;
+}
+
+pub async fn write(db, i) {
+    let idx = i % ROW_COUNT;
+    let pk = (idx / CKS_PER_PARTITION) as i64;
+    let ck = (idx % CKS_PER_PARTITION) as i64;
+    let value = blob(idx, VALUE_SIZE);
+    db.execute_prepared(P_WRITE, [pk, ck, value]).await?
+}
+
+pub async fn range_read(db, i) {
+    let pk = (i % PARTITION_COUNT) as i64;
+    let ck_start = (i % CKS_PER_PARTITION) as i64;
+    let ck_end = ck_start + RANGE_LIMIT;
+    db.execute_prepared(P_RANGE_READ, [pk, ck_start, ck_end]).await?
+}

@@ -1,0 +1,58 @@
+test_duration: 330
+
+pre_create_keyspace: [
+  "CREATE KEYSPACE keyspace1 WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor': 3} AND storage = {'type': 'S3', 'endpoint': 's3.us-east-1.amazonaws.com', 'bucket': 'manager-backup-tests-us-east-1'};",
+]
+
+n_db_nodes: 6
+n_loaders: 1
+seeds_num: 3
+simulated_racks: 3
+
+instance_type_db: 'i4i.xlarge'
+
+nemesis_class_name: 'NoOpMonkey'
+
+user_prefix: 'longevity-s3-range'
+space_node_threshold: 64424
+
+server_encrypt: true
+client_encrypt: true
+
+pre_create_schema: True
+sstable_size: 100
+
+hinted_handoff: 'enabled'
+parallel_node_operations: true
+
+prepare_write_cmd:
+  - >-
+    latte run
+    --tag latte-s3-write
+    --duration 3600
+    --request-timeout 30
+    --retry-interval '2s,10s'
+    --retry-number 5
+    --rate 10000
+    -f write
+    -P partition_count=200000
+    -P cks_per_partition=100
+    -P row_count=20000000
+    -P value_size=512
+    data_dir/latte/s3_range_query.rn
+
+stress_cmd:
+  - >-
+    latte run
+    --tag latte-s3-range-read
+    --duration 3600
+    --request-timeout 30
+    --retry-interval '2s,10s'
+    --retry-number 5
+    --concurrency 80
+    -f range_read
+    -P partition_count=200000
+    -P cks_per_partition=100
+    -P row_count=20000000
+    -P range_limit=100
+    data_dir/latte/s3_range_query.rn
