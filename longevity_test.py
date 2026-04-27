@@ -161,9 +161,9 @@ class LongevityTest(ClusterTester, loader_utils.LoaderUtilsMixin):
         if tombstone_gc_verification_params := self._get_tombstone_gc_verification_params():
             self.run_tombstone_gc_verification_thread(**tombstone_gc_verification_params)
 
-        # compaction_ops = CompactionOps(cluster=self.db_cluster)
-        # for node in self.db_cluster.nodes:
-        #     compaction_ops.disable_autocompaction_on_ks_cf(node=node)
+        compaction_ops = CompactionOps(cluster=self.db_cluster)
+        for node in self.db_cluster.nodes:
+            compaction_ops.disable_autocompaction_on_ks_cf(node=node)
 
         self.run_prepare_write_cmd()
 
