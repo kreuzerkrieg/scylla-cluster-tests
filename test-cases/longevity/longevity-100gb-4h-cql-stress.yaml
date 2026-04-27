@@ -6,11 +6,11 @@ pre_create_keyspace: [
 ]
 
 n_db_nodes: 6
-n_loaders: 1
+n_loaders: 2
 seeds_num: 3
 simulated_racks: 3
 
-instance_type_db: 'i4i.xlarge'
+instance_type_db: 'i4i.4xlarge'
 
 nemesis_class_name: 'SisyphusMonkey'
 #nemesis_class_name: 'NoOpMonkey'
@@ -31,7 +31,7 @@ prepare_write_cmd:
   - >-
     cql-stress-cassandra-stress write cl=QUORUM n=20000000
     -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3) compaction(strategy=SizeTieredCompactionStrategy)'
-    -rate 'threads=10 throttle=20000/s'
+    -rate 'threads=80'
     -mode cql3 native
     -pop seq=1..20000000
     -col 'n=FIXED(10) size=FIXED(512)'
