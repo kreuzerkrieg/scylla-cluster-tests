@@ -1,7 +1,6 @@
 test_duration: 330
 
 pre_create_keyspace: [
-#  "CREATE KEYSPACE keyspace1 WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor': 3} AND storage = {'type': 'S3', 'endpoint': 's3.us-east-1.amazonaws.com', 'bucket': 'manager-backup-tests-us-east-1'};",
   "CREATE KEYSPACE keyspace1 WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor': 3};",
 ]
 
