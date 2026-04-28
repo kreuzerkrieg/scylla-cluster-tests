@@ -36,6 +36,7 @@ from sdcm.utils.adaptive_timeouts import adaptive_timeout, Operations
 from sdcm.utils.common import skip_optional_stage
 from sdcm.utils.cluster_tools import group_nodes_by_dc_idx
 from sdcm.utils.decorators import optional_stage
+from sdcm.utils.node import build_node_api_command, RequestMethods
 from sdcm.utils.operations_thread import ThreadParams
 from sdcm.sct_events.system import InfoEvent, TestFrameworkEvent
 from sdcm.sct_events import Severity
@@ -159,6 +160,12 @@ class LongevityTest(ClusterTester, loader_utils.LoaderUtilsMixin):
 
         if tombstone_gc_verification_params := self._get_tombstone_gc_verification_params():
             self.run_tombstone_gc_verification_thread(**tombstone_gc_verification_params)
+
+        for node in self.db_cluster.nodes:
+            balancing_cmd = build_node_api_command(
+                '/storage_service/tablets/balancing?enabled=false',
+                RequestMethods.POST)
+            node.remoter.run(balancing_cmd, ignore_status=True, verbose=True)
 
         self.run_prepare_write_cmd()
 
