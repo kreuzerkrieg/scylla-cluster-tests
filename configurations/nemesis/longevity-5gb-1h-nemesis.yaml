@@ -35,3 +35,6 @@ client_encrypt: true
 teardown_validators:
   scrub:
     enabled: true
+
+experimental_features:
+  - keyspace-storage-options
