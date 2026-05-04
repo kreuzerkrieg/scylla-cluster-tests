@@ -44,14 +44,6 @@ prepare_write_cmd:
 
 stress_cmd:
   - >-
-    cql-stress-cassandra-stress write cl=QUORUM duration=60m
-    -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3) compaction(strategy=SizeTieredCompactionStrategy)'
-    -mode cql3 native
-    -rate threads=80
-    -pop seq=1..20971520
-    -col 'n=FIXED(10) size=FIXED(512)'
-    -log interval=5
-  - >-
     cql-stress-cassandra-stress read  cl=QUORUM duration=60m
     -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3) compaction(strategy=SizeTieredCompactionStrategy)'
     -mode cql3 native
@@ -62,3 +54,6 @@ stress_cmd:
 
 experimental_features:
   - keyspace-storage-options
+
+append_scylla_yaml:
+  enable_cache: false
