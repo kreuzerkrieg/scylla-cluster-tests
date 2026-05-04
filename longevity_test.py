@@ -162,11 +162,11 @@ class LongevityTest(ClusterTester, loader_utils.LoaderUtilsMixin):
         if tombstone_gc_verification_params := self._get_tombstone_gc_verification_params():
             self.run_tombstone_gc_verification_thread(**tombstone_gc_verification_params)
 
-        # for node in self.db_cluster.nodes:
-        #     balancing_cmd = build_node_api_command(
-        #         '/storage_service/tablets/balancing?enabled=false',
-        #         RequestMethods.POST)
-        #     node.remoter.run(balancing_cmd, ignore_status=True, verbose=True)
+        for node in self.db_cluster.nodes:
+            balancing_cmd = build_node_api_command(
+                '/storage_service/tablets/balancing?enabled=false',
+                RequestMethods.POST)
+            node.remoter.run(balancing_cmd, ignore_status=True, verbose=True)
 
         compaction_ops = CompactionOps(cluster=self.db_cluster)
         for node in self.db_cluster.nodes:
