@@ -2,7 +2,7 @@
 # do the changes in `template-longevity-5gb-1h-base.yaml.j2`
 test_duration: 150
 
-#pre_create_keyspace: "CREATE KEYSPACE keyspace1 WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor': 3} AND storage = {'type': 'S3', 'endpoint': 's3.us-east-1.amazonaws.com', 'bucket': 'manager-backup-tests-us-east-1'};"
+pre_create_keyspace: "CREATE KEYSPACE keyspace1 WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor': 3} AND storage = {'type': 'S3', 'endpoint': 's3.us-east-1.amazonaws.com', 'bucket': 'manager-backup-tests-us-east-1'};"
 
 prepare_write_cmd:
     - "cassandra-stress write cl=QUORUM n=26500000 -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3)' -mode cql3 native -rate threads=80 -pop seq=1..26500000 -col 'n=FIXED(8) size=FIXED(128)' -log interval=5"
