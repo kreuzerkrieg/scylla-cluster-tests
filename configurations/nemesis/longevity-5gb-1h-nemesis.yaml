@@ -1,28 +1,31 @@
 # this is generated please do not any changes this file manually
 # do the changes in `template-longevity-5gb-1h-base.yaml.j2`
-test_duration: 90
+test_duration: 150
 
-pre_create_keyspace: "CREATE KEYSPACE keyspace1 WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor': 3} AND storage = {'type': 'S3', 'endpoint': 's3.us-east-1.amazonaws.com', 'bucket': 'manager-backup-tests-us-east-1'};"
+#pre_create_keyspace: "CREATE KEYSPACE keyspace1 WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor': 3} AND storage = {'type': 'S3', 'endpoint': 's3.us-east-1.amazonaws.com', 'bucket': 'manager-backup-tests-us-east-1'};"
 
 prepare_write_cmd:
-    - "cassandra-stress write cl=QUORUM n=5048570 -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3)' -mode cql3 native -rate threads=80 -pop seq=1..5048570 -col 'n=FIXED(8) size=FIXED(128)' -log interval=5"
-    - "scylla-bench -workload=sequential -mode=write -replication-factor=3 -partition-count=10000 -clustering-row-count=555 -clustering-row-size=uniform:128..2048 -concurrency=10 -connection-count=10 -consistency-level=quorum -rows-per-request=10 -timeout=30s -validate-data"
+    - "cassandra-stress write cl=QUORUM n=26500000 -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3)' -mode cql3 native -rate threads=80 -pop seq=1..26500000 -col 'n=FIXED(8) size=FIXED(128)' -log interval=5"
+    - "cassandra-stress write cl=QUORUM n=26500000 -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3)' -mode cql3 native -rate threads=80 -pop seq=26500001..53000000 -col 'n=FIXED(8) size=FIXED(128)' -log interval=5"
+    - "cassandra-stress write cl=QUORUM n=26500000 -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3)' -mode cql3 native -rate threads=80 -pop seq=53000001..79500000 -col 'n=FIXED(8) size=FIXED(128)' -log interval=5"
+    - "cassandra-stress write cl=QUORUM n=26500000 -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3)' -mode cql3 native -rate threads=80 -pop seq=79500001..106000000 -col 'n=FIXED(8) size=FIXED(128)' -log interval=5"
+#    - "scylla-bench -workload=sequential -mode=write -replication-factor=3 -partition-count=170000 -clustering-row-count=555 -clustering-row-size=uniform:128..2048 -concurrency=10 -connection-count=10 -consistency-level=quorum -rows-per-request=10 -timeout=30s -validate-data"
 
 
 stress_cmd:
-    - "cassandra-stress write cl=QUORUM duration=60m -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3)' -mode cql3 native -rate threads=40 -pop seq=1..5048570 -col 'n=FIXED(8) size=FIXED(128)' -log interval=5"
-    - "cassandra-stress read  cl=QUORUM duration=60m -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3)' -mode cql3 native -rate threads=40 -pop seq=1..5048570 -col 'n=FIXED(8) size=FIXED(128)' -log interval=5"
-    - "scylla-bench -workload=sequential -mode=read -replication-factor=3 -partition-count=10000 -clustering-row-count=555 -clustering-row-size=uniform:128..2048 -concurrency=100 -connection-count=100 -consistency-level=quorum -rows-per-request=10 -timeout=30s -retry-number=30 -retry-interval=80ms,1s -iterations 0 -duration=60m -validate-data"
+    - "cassandra-stress write cl=QUORUM duration=60m -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3)' -mode cql3 native -rate threads=40 -pop seq=1..106000000 -col 'n=FIXED(8) size=FIXED(128)' -log interval=5"
+    - "cassandra-stress read  cl=QUORUM duration=60m -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3)' -mode cql3 native -rate threads=40 -pop seq=1..106000000 -col 'n=FIXED(8) size=FIXED(128)' -log interval=5"
+    - "scylla-bench -workload=sequential -mode=read -replication-factor=3 -partition-count=170000 -clustering-row-count=555 -clustering-row-size=uniform:128..2048 -concurrency=100 -connection-count=100 -consistency-level=quorum -rows-per-request=10 -timeout=30s -retry-number=30 -retry-interval=80ms,1s -iterations 0 -duration=60m -validate-data"
 
 n_db_nodes: 6
-n_loaders: 1
+n_loaders: 4
 seeds_num: 3
 
 instance_type_db: 'i4i.large'
 gce_instance_type_db: 'n2-highmem-2'
 gce_instance_type_loader: 'e2-standard-2'
 azure_instance_type_db: 'Standard_L8s_v3'
-instance_type_loader: 'c6i.large'
+instance_type_loader: 'c6i.2xlarge'
 azure_instance_type_loader: 'Standard_F2s_v2'
 
 nemesis_interval: 3
