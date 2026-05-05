@@ -13,8 +13,10 @@ prepare_write_cmd:
 
 
 stress_cmd:
-    - "cassandra-stress write cl=QUORUM duration=60m -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3)' -mode cql3 native -rate threads=40 -pop seq=1..106000000 -col 'n=FIXED(8) size=FIXED(128)' -log interval=5"
-    - "cassandra-stress read  cl=QUORUM duration=60m -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3)' -mode cql3 native -rate threads=40 -pop seq=1..106000000 -col 'n=FIXED(8) size=FIXED(128)' -log interval=5"
+    - "cassandra-stress write cl=QUORUM duration=60m -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3)' -mode cql3 native -rate threads=10 -pop seq=1..106000000 -col 'n=FIXED(8) size=FIXED(128)' -log interval=5"
+    - "cassandra-stress write cl=QUORUM duration=60m -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3)' -mode cql3 native -rate threads=10 -pop seq=1..106000000 -col 'n=FIXED(8) size=FIXED(128)' -log interval=5"
+    - "cassandra-stress read  cl=QUORUM duration=60m -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3)' -mode cql3 native -rate threads=10 -pop seq=1..106000000 -col 'n=FIXED(8) size=FIXED(128)' -log interval=5"
+    - "cassandra-stress read  cl=QUORUM duration=60m -schema 'replication(strategy=NetworkTopologyStrategy,replication_factor=3)' -mode cql3 native -rate threads=10 -pop seq=1..106000000 -col 'n=FIXED(8) size=FIXED(128)' -log interval=5"
 #    - "scylla-bench -workload=sequential -mode=read -replication-factor=3 -partition-count=170000 -clustering-row-count=555 -clustering-row-size=uniform:128..2048 -concurrency=100 -connection-count=100 -consistency-level=quorum -rows-per-request=10 -timeout=30s -retry-number=30 -retry-interval=80ms,1s -iterations 0 -duration=60m -validate-data"
 
 round_robin: true
