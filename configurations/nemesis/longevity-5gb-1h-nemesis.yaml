@@ -39,9 +39,9 @@ gce_n_local_ssd_disk_db: 1
 server_encrypt: true
 client_encrypt: true
 
-teardown_validators:
-  scrub:
-    enabled: true
+#teardown_validators:
+#  scrub:
+#    enabled: true
 
 experimental_features:
   - keyspace-storage-options
