@@ -168,9 +168,9 @@ class LongevityTest(ClusterTester, loader_utils.LoaderUtilsMixin):
         #         RequestMethods.POST)
         #     node.remoter.run(balancing_cmd, ignore_status=True, verbose=True)
         #
-        # compaction_ops = CompactionOps(cluster=self.db_cluster)
-        # for node in self.db_cluster.nodes:
-        #     compaction_ops.disable_autocompaction_on_ks_cf(node=node)
+        compaction_ops = CompactionOps(cluster=self.db_cluster)
+        for node in self.db_cluster.nodes:
+            compaction_ops.disable_autocompaction_on_ks_cf(node=node)
 
         self.run_prepare_write_cmd()
 
