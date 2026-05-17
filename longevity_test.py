@@ -17,6 +17,7 @@ import os
 import re
 import string
 import tempfile
+import threading
 import itertools
 import contextlib
 from typing import List, Dict
@@ -35,7 +36,9 @@ from sdcm.utils import loader_utils
 from sdcm.utils.adaptive_timeouts import adaptive_timeout, Operations
 from sdcm.utils.common import skip_optional_stage
 from sdcm.utils.cluster_tools import group_nodes_by_dc_idx
+
 from sdcm.utils.decorators import optional_stage
+from sdcm.utils.node import build_node_api_command, RequestMethods
 from sdcm.utils.operations_thread import ThreadParams
 from sdcm.sct_events.system import InfoEvent, TestFrameworkEvent
 from sdcm.sct_events import Severity
@@ -160,7 +163,52 @@ class LongevityTest(ClusterTester, loader_utils.LoaderUtilsMixin):
         if tombstone_gc_verification_params := self._get_tombstone_gc_verification_params():
             self.run_tombstone_gc_verification_thread(**tombstone_gc_verification_params)
 
-        self.run_prepare_write_cmd()
+        for node in self.db_cluster.nodes:
+            balancing_cmd = build_node_api_command(
+                '/storage_service/tablets/balancing?enabled=false',
+                RequestMethods.POST)
+            node.remoter.run(balancing_cmd, ignore_status=True, verbose=True)
+
+        def _disable_compaction_after_schema_created():
+            """Disable auto-compaction after the stress tool has created the schema.
+
+            Called by LatteStressThread between 'latte schema' (table creation) and
+            'latte run' (data insertion). At this point the table exists and disabling
+            auto-compaction takes effect.
+            """
+            self.log.info("Disabling auto-compaction on keyspace1 (on_schema_created callback)...")
+            for node in self.db_cluster.nodes:
+                disable_compaction_cmd = build_node_api_command(
+                    '/storage_service/auto_compaction/keyspace1',
+                    RequestMethods.DELETE)
+                node.remoter.run(disable_compaction_cmd, ignore_status=True, verbose=True)
+
+        self.run_prepare_write_cmd(on_schema_created=_disable_compaction_after_schema_created)
+
+        def _enable_compaction_and_compact(node):
+            """Re-enable compaction, balancing, and run major compaction on a single node."""
+            enable_compaction_cmd = build_node_api_command(
+                '/storage_service/auto_compaction/keyspace1',
+                RequestMethods.POST)
+            node.remoter.run(enable_compaction_cmd, ignore_status=True, verbose=True)
+
+            balancing_cmd = build_node_api_command(
+                '/storage_service/tablets/balancing?enabled=true',
+                RequestMethods.POST)
+            node.remoter.run(balancing_cmd, ignore_status=True, verbose=True)
+
+            major_compaction_cmd = build_node_api_command(
+                '/storage_service/compact?flush_memtables=true',
+                RequestMethods.POST)
+            node.remoter.run(major_compaction_cmd, ignore_status=True, verbose=True)
+
+        threads = []
+        for node in self.db_cluster.nodes:
+            thread = threading.Thread(target=_enable_compaction_and_compact, args=(node,))
+            threads.append(thread)
+            thread.start()
+        for thread in threads:
+            thread.join()
 
         # Grow cluster to target size if requested
         if cluster_target_size := self.params.get("cluster_target_size"):

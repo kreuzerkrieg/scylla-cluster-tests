@@ -2328,6 +2328,12 @@ class BaseNode(AutoSshContainerMixin):
         if self.parent_cluster.params.get("db_nodes_shards_selection") == "random":
             append_scylla_args += f" --smp {self.scylla_random_shards()}"
 
+        # Replace default log level to debug
+        # self.remoter.sudo(
+        #     f"sed -i 's/--default-log-level info/--default-log-level debug/' "
+        #     f"{self.scylla_server_sysconfig_path}"
+        # )
+
         if append_scylla_args:
             self.log.debug("Append following args to scylla: `%s'", append_scylla_args)
             self.remoter.sudo(
