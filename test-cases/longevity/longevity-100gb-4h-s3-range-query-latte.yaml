@@ -22,6 +22,9 @@ hinted_handoff: 'enabled'
 parallel_node_operations: true
 
 append_scylla_yaml:
+  write_request_timeout_in_ms: 4800000
+  read_request_timeout_in_ms: 4800000
+  range_request_timeout_in_ms: 4800000
   query_page_size_in_bytes: 67108864
 
 prepare_write_cmd:
