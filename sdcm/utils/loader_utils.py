@@ -233,14 +233,7 @@ class LoaderUtilsMixin:
             self.log.debug("Execute post prepare queries: %s", post_prepare_cql_cmds)
             self._run_cql_commands(post_prepare_cql_cmds)
 
-    def run_prepare_write_cmd(self, on_schema_created=None):
-        """Run prepare write commands.
-
-        Args:
-            on_schema_created: Optional callback invoked after the stress tool creates the schema
-                (e.g., after 'latte schema' runs) but before the actual data loading begins.
-                Useful for operations that require tables to exist (e.g., disabling compaction).
-        """
+    def run_prepare_write_cmd(self):
         # In some cases (like many keyspaces), we want to create the schema (all keyspaces & tables) before the load
         # starts - due to the heavy load, the schema propogation can take long time and c-s fails.
         prepare_write_cmd = self.params.get("prepare_write_cmd")
@@ -267,7 +260,6 @@ class LoaderUtilsMixin:
                                 "duration": self.params.get("prepare_stress_duration"),
                                 "keyspace_name": keyspace_name,
                                 "round_robin": True,
-                                "on_schema_created": on_schema_created,
                             },
                         )
                 # Not using round_robin and all keyspaces will run on all loaders
@@ -279,14 +271,11 @@ class LoaderUtilsMixin:
                             "duration": self.params.get("prepare_stress_duration"),
                             "keyspace_num": keyspace_num,
                             "round_robin": self.params.get("round_robin"),
-                            "on_schema_created": on_schema_created,
                         },
                     )
 
             if prepare_cs_user_profiles:
                 self.run_cs_user_profiles(cs_profiles=prepare_cs_user_profiles, stress_queue=write_queue)
-
-
         # In some cases we don't want the nemesis to run during the "prepare" stage in order to be 100% sure that
         # all keys were written succesfully
         if self.params.get("nemesis_during_prepare"):
