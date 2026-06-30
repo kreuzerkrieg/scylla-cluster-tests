@@ -83,7 +83,7 @@ pub async fn schema(db) {
         value9 blob,
         value10 blob,
         PRIMARY KEY (pk, ck)
-    ) WITH compaction = {'class': 'IncrementalCompactionStrategy'}`).await?;
+    ) WITH compaction = {'class': 'NullCompactionStrategy'}`).await?;
 }
 
 pub async fn erase(db) {
