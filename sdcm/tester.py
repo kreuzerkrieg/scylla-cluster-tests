@@ -2795,6 +2795,7 @@ class ClusterTester(unittest.TestCase):
         use_single_loader=False,
         stop_test_on_failure=True,
         node_list=None,
+        on_schema_created=None,
     ):
         params = dict(
             stress_cmd=stress_cmd,
@@ -2827,6 +2828,7 @@ class ClusterTester(unittest.TestCase):
             return self.run_ycsb_thread(**params)
         elif stress_cmd.startswith("latte"):
             params["stop_test_on_failure"] = stop_test_on_failure
+            params["on_schema_created"] = on_schema_created
             return self.run_latte_thread(**params)
         elif stress_cmd.startswith("ndbench"):
             return self.run_ndbench_thread(**params)
@@ -3006,6 +3008,7 @@ class ClusterTester(unittest.TestCase):
         stats_aggregate_cmds=True,
         stop_test_on_failure=True,
         node_list=None,
+        on_schema_created=None,
         **_,
     ):
         if duration:
@@ -3028,6 +3031,7 @@ class ClusterTester(unittest.TestCase):
             round_robin=round_robin,
             stop_test_on_failure=stop_test_on_failure,
             params=self.params,
+            on_schema_created=on_schema_created,
         ).run()
 
     def run_hydra_kcl_thread(
