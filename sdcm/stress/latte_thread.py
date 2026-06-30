@@ -95,6 +95,13 @@ class LatteStressThread(DockerBasedStressThread):
     DOCKER_IMAGE_PARAM_NAME = "stress_image.latte"
     SCHEMA_CMD_CALL_COUNTER = {}
 
+    def __init__(self, *args, on_schema_created=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Optional callback invoked once after the 'latte schema' command successfully
+        # creates the schema, but before the data-load subcommand runs. Useful for
+        # operations that require tables to exist (e.g. disabling auto-compaction).
+        self.on_schema_created = on_schema_created
+
     def set_stress_operation(self, stress_cmd):
         return get_latte_operation_type(self.stress_cmd)
 
@@ -197,6 +204,11 @@ class LatteStressThread(DockerBasedStressThread):
             tester = self.loader_set.test_config.tester_obj()
             if hasattr(tester, "run_post_latte_schema_cmd"):
                 tester.run_post_latte_schema_cmd()
+            if self.on_schema_created is not None:
+                try:
+                    self.on_schema_created()
+                except Exception as exc:  # noqa: BLE001
+                    LOGGER.error("on_schema_created callback failed: %s", exc)
         else:
             LOGGER.debug("Skip calling following 'latte schema' (tag: %s) cmd: %s", first_tag_or_op, schema_cmd)
 

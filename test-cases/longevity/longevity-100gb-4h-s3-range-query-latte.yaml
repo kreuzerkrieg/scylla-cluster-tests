@@ -23,7 +23,6 @@ parallel_node_operations: true
 
 append_scylla_yaml:
   query_page_size_in_bytes: 67108864
-  object_storage_clients_memory_fraction: 0.5
 
 prepare_write_cmd:
   - >-
